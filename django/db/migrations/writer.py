@@ -185,6 +185,12 @@ class MigrationWriter(object):
         More advanced than repr() as it can encode things
         like datetime.datetime.now.
         """
+        # FIXME: Ideally Promise would be reconstructible, but for now we
+        # use force_text on them and defer to the normal string serialization
+        # process.
+        if isinstance(value, Promise):
+            value = force_text(value)
+
         # Sequences
         if isinstance(value, (list, set, tuple)):
             imports = set()
@@ -223,11 +229,20 @@ class MigrationWriter(object):
         elif isinstance(value, SettingsReference):
             return "settings.%s" % value.setting_name, set(["from django.conf import settings"])
         # Simple types
-        elif isinstance(value, six.integer_types + (float, six.binary_type, six.text_type, bool, type(None))):
+        elif isinstance(value, six.integer_types + (float, bool, type(None))):
             return repr(value), set()
-        # Promise
-        elif isinstance(value, Promise):
-            return repr(force_text(value)), set()
+        elif isinstance(value, six.binary_type):
+            value_repr = repr(value)
+            if six.PY2:
+                # Prepend the `b` prefix since we're importing unicode_literals
+                value_repr = 'b' + value_repr
+            return value_repr, set()
+        elif isinstance(value, six.text_type):
+            value_repr = repr(value)
+            if six.PY2:
+                # Strip the `u` prefix since we're importing unicode_literals
+                value_repr = value_repr[1:]
+            return value_repr, set()
         # Decimal
         elif isinstance(value, decimal.Decimal):
             return repr(value), set(["from decimal import Decimal"])
@@ -280,6 +295,8 @@ class MigrationWriter(object):
 
 MIGRATION_TEMPLATE = """\
 # encoding: utf8
+from __future__ import unicode_literals
+
 from django.db import models, migrations
 %(imports)s
 
