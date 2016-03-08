@@ -6,6 +6,35 @@ from django.utils import six
 from django.utils.six.moves import input
 
 
+class CreateContentType(migrations.RunPython):
+    def __init__(self, app_label, model_name):
+        self.app_label = app_label
+        self.model_name = model_name
+        super(CreateContentType, self).__init__(self.forward, self.backward)
+
+    def create_contenttype(self, apps, schema_editor):
+        ContentType = apps.get_model('contenttypes', 'ContentType')
+        db = schema_editor.connection.alias
+        if not router.allow_migrate_model(db, ContentType):
+            return
+        ContentType.objects.using(db).create(app_label=self.app_label, model=self.model_name)
+
+    def delete_contenttype(self, apps, schema_editor):
+        ContentType = apps.get_model('contenttypes', 'ContentType')
+        db = schema_editor.connection.alias
+        if not router.allow_migrate_model(db, ContentType):
+            return
+        ContentType.objects.using(db).get(app_label=self.app_label, model=self.model_name).delete()
+
+    forward = create_contenttype
+    backward = delete_contenttype
+
+
+class DeleteContentType(CreateContentType):
+    forward = CreateContentType.delete_contenttype
+    backward = CreateContentType.create_contenttype
+
+
 class RenameContentType(migrations.RunPython):
     def __init__(self, app_label, old_model, new_model):
         self.app_label = app_label
@@ -78,7 +107,13 @@ def inject_rename_contenttypes_operations(plan=None, apps=global_apps, using=DEF
             continue
         inserts = []
         for index, operation in enumerate(migration.operations):
-            if isinstance(operation, migrations.RenameModel):
+            if isinstance(operation, migrations.CreateModel):
+                operation = CreateContentType(migration.app_label, operation.name_lower)
+                inserts.append((index + 1, operation))
+            elif isinstance(operation, migrations.DeleteModel):
+                operation = DeleteContentType(migration.app_label, operation.name_lower)
+                inserts.append((index + 1, operation))
+            elif isinstance(operation, migrations.RenameModel):
                 operation = RenameContentType(
                     migration.app_label, operation.old_name_lower, operation.new_name_lower
                 )

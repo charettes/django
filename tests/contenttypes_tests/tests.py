@@ -486,7 +486,17 @@ class ContentTypeOperationsTests(TransactionTestCase):
         for migration, _backward in plan:
             operations = iter(migration.operations)
             for operation in operations:
-                if isinstance(operation, migrations.RenameModel):
+                if isinstance(operation, migrations.CreateModel):
+                    next_operation = next(operations)
+                    self.assertIsInstance(next_operation, contenttypes_management.CreateContentType)
+                    self.assertEqual(next_operation.app_label, migration.app_label)
+                    self.assertEqual(next_operation.model_name, operation.name_lower)
+                elif isinstance(operation, migrations.DeleteModel):
+                    next_operation = next(operations)
+                    self.assertIsInstance(next_operation, contenttypes_management.DeleteContentType)
+                    self.assertEqual(next_operation.app_label, migration.app_label)
+                    self.assertEqual(next_operation.model_name, operation.name_lower)
+                elif isinstance(operation, migrations.RenameModel):
                     next_operation = next(operations)
                     self.assertIsInstance(next_operation, contenttypes_management.RenameContentType)
                     self.assertEqual(next_operation.app_label, migration.app_label)
@@ -500,6 +510,8 @@ class ContentTypeOperationsTests(TransactionTestCase):
         )
         self.assertFalse(ContentType.objects.filter(app_label='contenttypes_tests', model='foo').exists())
         self.assertTrue(ContentType.objects.filter(app_label='contenttypes_tests', model='renamedfoo').exists())
+
+    def test_forward(self):
         management.call_command(
             'migrate', 'contenttypes_tests', 'zero', database='default', interactive=False, verbosity=0,
         )
@@ -521,6 +533,8 @@ class ContentTypeOperationsTests(TransactionTestCase):
     def test_content_type_rename_conflict(self):
         ContentType.objects.create(app_label='contenttypes_tests', model='foo')
         ContentType.objects.create(app_label='contenttypes_tests', model='renamedfoo')
+
+    def test_backward(self):
         management.call_command(
             'migrate', 'contenttypes_tests', database='default', interactive=False, verbosity=0,
         )
