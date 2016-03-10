@@ -9,7 +9,7 @@ import unicodedata
 from django.apps import apps as global_apps
 from django.contrib.auth import get_permission_codename
 from django.core import exceptions
-from django.db import DEFAULT_DB_ALIAS, router
+from django.db import DEFAULT_DB_ALIAS, migrations, router
 from django.utils import six
 from django.utils.encoding import DEFAULT_LOCALE_ENCODING
 
@@ -35,6 +35,23 @@ def _get_builtin_permissions(opts):
             'Can %s %s' % (action, opts.verbose_name_raw)
         ))
     return perms
+
+
+class CreateModelPermissions(migrations.RunPython):
+    pass
+
+
+class DeleteModelPermissions(CreateModelPermissions):
+    pass
+
+
+class RenameModelPermissions(migrations.RunPython):
+    def _rename(self, apps, schema_editor):
+        ContentType = apps.get_model('contenttypes', 'ContentType')
+
+        content_type = ContentType.objects.get_for_model()
+
+        Permission = apps.get_model('auth', 'Permission')
 
 
 def create_permissions(app_config, verbosity=2, interactive=True, using=DEFAULT_DB_ALIAS, apps=global_apps, **kwargs):
