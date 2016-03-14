@@ -236,17 +236,17 @@ def actual_test_processes(parallel):
 
 class ActionSelenium(argparse.Action):
     """
-    Validate the browsers requested and raise appropriate exception.
+    Validate the requested browsers.
     """
     def __call__(self, parser, namespace, values, option_string=None):
         browsers = values.split(',')
         for browser in browsers:
             try:
-                # Attempt to create class instance to see if everything is fine.
-                import_string('selenium.webdriver.%s.webdriver.WebDriver' % browser)
+                # Attempt to create driver instance to see if everything is fine.
+                import_string('selenium.webdriver.%s.webdriver.WebDriver' % browser)().quit()
             except Exception:
                 msg = "Selenium specifications not valid or corresponding WebDriver not installed: %s" % browser
-                raise argparse.ArgumentError(self, msg)
+                raise RuntimeError(msg)
         setattr(namespace, self.dest, browsers)
 
 
@@ -414,7 +414,7 @@ if __name__ == "__main__":
              'is localhost:8081-8179.')
     parser.add_argument(
         '--selenium', dest='selenium', action=ActionSelenium,
-        help='A comma separated list of browsers to run only the Selenium tests against.')
+        help='A comma-separated list of browsers to run the Selenium tests against.')
     parser.add_argument(
         '--debug-sql', action='store_true', dest='debug_sql', default=False,
         help='Turn on the SQL query logger within tests.')
