@@ -14,13 +14,14 @@ class SeleniumTestCaseBase(type(LiveServerTestCase)):
     browser = None
 
     def __new__(cls, name, bases, attrs):
+        """
+        Dynamically create new classes and add them to the test module
+        when multiple browsers specs are provided (e.g. --selenium=firefox, chrome).
+        """
         test_class = super(SeleniumTestCaseBase, cls).__new__(cls, name, bases, attrs)
-        # If the test class is either browser specific or a test base we
-        # return it intact.
-        if (test_class.browser or
-                not any(name.startswith('test') and callable(value) for name, value in attrs.items())):
-            return test_class
-        elif test_class.browsers:
+        # If the test class is nor browser specific, neither a test base modify it.
+        if (not test_class.browser and
+                any(name.startswith('test') and callable(value) for name, value in attrs.items())):
             first_browser = test_class.browsers[0]
             test_class.browser = first_browser
             module = sys.modules[test_class.__module__]
@@ -32,8 +33,7 @@ class SeleniumTestCaseBase(type(LiveServerTestCase)):
                     {'browser': browser, '__module__': test_class.__module__}
                 )
                 setattr(module, browser_test_class.__name__, browser_test_class)
-            return test_class
-        return unittest.skip('No browsers defined.')(test_class)
+        return test_class
 
     def create_webdriver(self):
         return import_string('selenium.webdriver.%s.webdriver.WebDriver' % self.browser)()
@@ -50,9 +50,9 @@ class SeleniumTestCase(with_metaclass(SeleniumTestCaseBase, LiveServerTestCase))
 
     @classmethod
     def _tearDownClassInternal(cls):
-        # We must quit() the WebDriver before attempting to terminate and join
-        # the single-threaded LiveServerThread as we might end up with a dead
-        # lock if the browser kept a connection alive.
+        # quit() the WebDriver before attempting to terminate and join the
+        # single-threaded LiveServerThread to avoid a dead lock in case the
+        # browser kept a connection alive.
         if hasattr(cls, 'selenium'):
             cls.selenium.quit()
         super(SeleniumTestCase, cls)._tearDownClassInternal()

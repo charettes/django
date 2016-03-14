@@ -264,7 +264,7 @@ class JsI18NTestsMultiPackage(SimpleTestCase):
 
 
 @override_settings(ROOT_URLCONF='view_tests.urls')
-class JavascriptI18nTests(SeleniumTestCase, LiveServerTestCase):
+class JavascriptI18nTests(SeleniumTestCase):
 
     # The test cases use fixtures & translations from these apps.
     available_apps = [
