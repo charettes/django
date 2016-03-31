@@ -2,6 +2,7 @@
 Classes that represent database functions.
 """
 from django.db.models import Func, Transform, Value, fields
+from django.utils import timezone
 
 
 class Cast(Func):
@@ -36,6 +37,14 @@ class Cast(Func):
         # CAST would be valid too, but the :: shortcut syntax is more readable.
         return self.as_sql(compiler, connection, template='%(expressions)s::%(db_type)s')
 
+    def get_empty_result(self):
+        empty_result = self.source_expressions[0].get_empty_result()
+        if empty_result is not None:
+            try:
+                return self.output_field.to_python(empty_result)
+            except Exception:
+                return None
+
 
 class Coalesce(Func):
     """
@@ -61,6 +70,12 @@ class Coalesce(Func):
             clone.set_source_expressions(expressions)
             return super(Coalesce, clone).as_sql(compiler, connection)
         return self.as_sql(compiler, connection)
+
+    def get_empty_result(self):
+        for expression in self.source_expressions:
+            result = expression.get_empty_result()
+            if result is not None:
+                return result
 
 
 class ConcatPair(Func):
@@ -95,6 +110,12 @@ class ConcatPair(Func):
         c.set_source_expressions(expressions)
         return c
 
+    def get_empty_result(self):
+        return "%s%s" % (
+            self.source_expressions[0].get_empty_result() or '',
+            self.source_expressions[1].get_empty_result() or '',
+        )
+
 
 class Concat(Func):
     """
@@ -119,6 +140,9 @@ class Concat(Func):
             return ConcatPair(*expressions)
         return ConcatPair(expressions[0], self._paired(expressions[1:]))
 
+    def get_empty_result(self):
+        return self.source_expressions[0].get_empty_result()
+
 
 class Greatest(Func):
     """
@@ -138,6 +162,19 @@ class Greatest(Func):
     def as_sqlite(self, compiler, connection):
         """Use the MAX function on SQLite."""
         return super(Greatest, self).as_sql(compiler, connection, function='MAX')
+
+    def get_empty_result(self):
+        # XXX: Special case Postgres?
+        greatest = None
+        for expression in self.source_expressions:
+            empty_result = expression.get_empty_result()
+            if empty_result is None:
+                return None
+            elif greatest is None:
+                greatest = empty_result
+            else:
+                greatest = max(greatest, empty_result)
+        return greatest
 
 
 class Least(Func):
@@ -159,6 +196,19 @@ class Least(Func):
         """Use the MIN function on SQLite."""
         return super(Least, self).as_sql(compiler, connection, function='MIN')
 
+    def get_empty_result(self):
+        # XXX: Special case Postgres?
+        least = None
+        for expression in self.source_expressions:
+            empty_result = expression.get_empty_result()
+            if empty_result is None:
+                return None
+            elif least is None:
+                least = empty_result
+            else:
+                least = min(least, empty_result)
+        return least
+
 
 class Length(Transform):
     """Returns the number of characters in the expression"""
@@ -172,10 +222,20 @@ class Length(Transform):
     def as_mysql(self, compiler, connection):
         return super(Length, self).as_sql(compiler, connection, function='CHAR_LENGTH')
 
+    def get_empty_result(self):
+        empty_result = self.source_expressions[0]
+        if empty_result is not None:
+            return len(empty_result)
+
 
 class Lower(Transform):
     function = 'LOWER'
     lookup_name = 'lower'
+
+    def get_empty_result(self):
+        empty_result = self.source_expressions[0]
+        if empty_result is not None:
+            return empty_result.lower()
 
 
 class Now(Func):
@@ -191,6 +251,9 @@ class Now(Func):
         # transaction". We use STATEMENT_TIMESTAMP to be cross-compatible with
         # other databases.
         return self.as_sql(compiler, connection, template='STATEMENT_TIMESTAMP()')
+
+    def get_empty_result(self):
+        return timezone.now()
 
 
 class Substr(Func):
@@ -219,7 +282,24 @@ class Substr(Func):
     def as_oracle(self, compiler, connection):
         return super(Substr, self).as_sql(compiler, connection, function='SUBSTR')
 
+    def get_empty_result(self):
+        empty_result = self.source_expressions[0].get_empty_result()
+        pos = self.source_expressions[1].get_empty_result()
+        if empty_result is not None and pos is not None:
+            if len(self.source_expressions) == 3:
+                length = self.source_expressions[2].get_empty_result()
+                if length is None:
+                    return
+            else:
+                length = None
+            return empty_result[pos-1:pos-1+length if length is not None else None]
+
 
 class Upper(Transform):
     function = 'UPPER'
     lookup_name = 'upper'
+
+    def get_empty_result(self):
+        empty_result = self.source_expressions[0]
+        if empty_result is not None:
+            return empty_result.upper()

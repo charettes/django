@@ -1,5 +1,6 @@
 import copy
 import datetime
+import random
 
 from django.conf import settings
 from django.core.exceptions import FieldError
@@ -357,6 +358,9 @@ class BaseExpression(object):
                 for inner_expr in expr.flatten():
                     yield inner_expr
 
+    def get_empty_result(self):
+        return None
+
 
 class Expression(BaseExpression, Combinable):
     """
@@ -421,6 +425,16 @@ class CombinedExpression(Expression):
         c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)
         c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)
         return c
+
+    def get_empty_result(self):
+        lhs_empty_result = self.lhs.get_empty_result()
+        rhs_empty_result = self.rhs.get_empty_result()
+        if lhs_empty_result is not None and rhs_empty_result is not None:
+            if self.connector == self.ADD:
+                return lhs_empty_result + rhs_empty_result
+            elif self.connector == self.SUB:
+                return lhs_empty_result + rhs_empty_result
+            # Complete.
 
 
 class DurationExpression(CombinedExpression):
@@ -615,6 +629,9 @@ class Value(Expression):
     def get_group_by_cols(self):
         return []
 
+    def get_empty_result(self):
+        return self.value
+
 
 class DurationValue(Value):
     def as_sql(self, compiler, connection):
@@ -659,6 +676,9 @@ class Random(Expression):
 
     def as_sql(self, compiler, connection):
         return connection.ops.random_function_sql(), []
+
+    def get_empty_result(self):
+        return random.random()
 
 
 class Col(Expression):
