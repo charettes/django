@@ -126,6 +126,8 @@ class CreateModel(ModelOperation):
         if (isinstance(operation, DeleteModel) and
                 self.name_lower == operation.name_lower and
                 not self.options.get("proxy", False)):
+            if any(between.references_model(self.name, app_label) for between in in_between):
+                return False
             return []
         elif isinstance(operation, RenameModel) and self.name_lower == operation.old_name_lower:
             return [
@@ -194,6 +196,8 @@ class CreateModel(ModelOperation):
                         managers=self.managers,
                     ),
                 ]
+        elif isinstance(operation, CreateModel):
+            return True
         return super(CreateModel, self).reduce(operation, in_between, app_label=app_label)
 
 
