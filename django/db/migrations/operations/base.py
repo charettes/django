@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.db import router
+from django.utils import six
 
 
 class Operation(object):
@@ -80,6 +81,16 @@ class Operation(object):
         Outputs a brief summary of what the action does.
         """
         return "%s: %s" % (self.__class__.__name__, self._constructor_args)
+
+    def model_to_key(self, model):
+        """
+        Take either a model class or an "app_label.ModelName" string
+        and return (app_label, object_name).
+        """
+        if isinstance(model, six.string_types):
+            return model.split(".", 1)
+        else:
+            return model._meta.app_label, model._meta.object_name
 
     def references_model(self, name, app_label=None):
         """

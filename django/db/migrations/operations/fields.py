@@ -6,7 +6,7 @@ from django.utils.functional import cached_property
 from .base import Operation
 
 
-class FieldOperation(Operation):
+class BaseFieldOperation(Operation):
     def __init__(self, model_name, name):
         self.model_name = model_name
         self.name = name
@@ -33,20 +33,46 @@ class FieldOperation(Operation):
 
     def reduce(self, operation, in_between, app_label=None):
         return (
-            super(FieldOperation, self).reduce(operation, in_between, app_label=app_label) or
+            super(BaseFieldOperation, self).reduce(operation, in_between, app_label=app_label) or
             not operation.references_field(self.model_name, self.name, app_label)
         )
+
+
+class FieldOperation(BaseFieldOperation):
+    def __init__(self, model_name, name, field, preserve_default=True):
+        self.field = field
+        self.preserve_default = preserve_default
+        super(FieldOperation, self).__init__(model_name, name)
+
+    def _remote_field_references_model(self, name, app_label):
+        models_to_check = [self.field.remote_field.model]
+        if getattr(self.field.remote_field, 'through', None):
+            models_to_check.append(self.field.remote_field.through)
+        for model_to_check in models_to_check:
+            model_app_label, model_name = self.model_to_key(model_to_check)
+            if model_name.lower() == name.lower() and (
+                    app_label is None or not model_app_label or model_app_label == app_label):
+                return True
+        return False
+
+    def references_model(self, name, app_label=None):
+        return super(FieldOperation, self).references_model(name, app_label) or (
+            self.field.remote_field and self._remote_field_references_model(name, app_label)
+        )
+
+    def references_field(self, model_name, name, app_label=None):
+        if super(FieldOperation, self).references_field(model_name, name, app_label):
+            return True
+        elif self.field.remote_field and self._remote_field_references_model(model_name, app_label):
+            # XXX: This should handle target fields (to_fields) to prevent false positives.
+            return True
+        return False
 
 
 class AddField(FieldOperation):
     """
     Adds a field to a model.
     """
-
-    def __init__(self, model_name, name, field, preserve_default=True):
-        self.field = field
-        self.preserve_default = preserve_default
-        super(AddField, self).__init__(model_name, name)
 
     def deconstruct(self):
         kwargs = {
@@ -95,7 +121,7 @@ class AddField(FieldOperation):
         return "Add field %s to %s" % (self.name, self.model_name)
 
     def reduce(self, operation, in_between, app_label=None):
-        if isinstance(operation, FieldOperation) and self.is_same_field_operation(operation):
+        if isinstance(operation, BaseFieldOperation) and self.is_same_field_operation(operation):
             if isinstance(operation, AlterField):
                 return [
                     AddField(
@@ -117,7 +143,7 @@ class AddField(FieldOperation):
         return super(AddField, self).reduce(operation, in_between, app_label=app_label)
 
 
-class RemoveField(FieldOperation):
+class RemoveField(BaseFieldOperation):
     """
     Removes a field from a model.
     """
@@ -160,11 +186,6 @@ class AlterField(FieldOperation):
     """
     Alters a field's database column (e.g. null, max_length) to the provided new field
     """
-
-    def __init__(self, model_name, name, field, preserve_default=True):
-        self.field = field
-        self.preserve_default = preserve_default
-        super(AlterField, self).__init__(model_name, name)
 
     def deconstruct(self):
         kwargs = {
@@ -226,7 +247,7 @@ class AlterField(FieldOperation):
         return super(AlterField, self).reduce(operation, in_between, app_label=app_label)
 
 
-class RenameField(FieldOperation):
+class RenameField(BaseFieldOperation):
     """
     Renames a field on the model. Might affect db_column too.
     """
@@ -312,9 +333,9 @@ class RenameField(FieldOperation):
                     operation.new_name,
                 ),
             ]
-        # Skip `FieldOperation.reduce` as we want to run `references_field`
+        # Skip `BaseFieldOperation.reduce` as we want to run `references_field`
         # against self.new_name.
         return (
-            super(FieldOperation, self).reduce(operation, in_between, app_label=app_label) or
+            super(BaseFieldOperation, self).reduce(operation, in_between, app_label=app_label) or
             not operation.references_field(self.model_name, self.new_name, app_label)
         )

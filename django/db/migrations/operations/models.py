@@ -8,7 +8,7 @@ from django.utils import six
 from django.utils.functional import cached_property
 
 from .fields import (
-    AddField, AlterField, FieldOperation, RemoveField, RenameField,
+    AddField, AlterField, BaseFieldOperation, RemoveField, RenameField,
 )
 
 
@@ -122,16 +122,6 @@ class CreateModel(ModelOperation):
                     return True
         return False
 
-    def model_to_key(self, model):
-        """
-        Take either a model class or an "app_label.ModelName" string
-        and return (app_label, object_name).
-        """
-        if isinstance(model, six.string_types):
-            return model.split(".", 1)
-        else:
-            return model._meta.app_label, model._meta.object_name
-
     def reduce(self, operation, in_between, app_label=None):
         if (isinstance(operation, DeleteModel) and
                 self.name_lower == operation.name_lower and
@@ -147,20 +137,14 @@ class CreateModel(ModelOperation):
                     managers=self.managers,
                 ),
             ]
-        elif isinstance(operation, FieldOperation) and self.name_lower == operation.model_name_lower:
+        elif isinstance(operation, BaseFieldOperation) and self.name_lower == operation.model_name_lower:
+            for between in in_between:
+                if isinstance(between, ModelOperation) and operation.references_model(between.name_lower, app_label):
+                    return False
+                elif (isinstance(between, BaseFieldOperation) and
+                        operation.references_field(between.model_name_lower, between.name, app_label)):
+                    return False
             if isinstance(operation, AddField):
-                # Don't allow optimizations of FKs through models they reference
-                if hasattr(operation.field, "remote_field") and operation.field.remote_field:
-                    for between in in_between:
-                        # Check that it doesn't point to the model
-                        app_label, object_name = self.model_to_key(operation.field.remote_field.model)
-                        if between.references_model(object_name, app_label):
-                            return False
-                        # Check that it's not through the model
-                        if getattr(operation.field.remote_field, "through", None):
-                            app_label, object_name = self.model_to_key(operation.field.remote_field.through)
-                            if between.references_model(object_name, app_label):
-                                return False
                 return [
                     CreateModel(
                         self.name,
@@ -482,7 +466,7 @@ class ModelOptionOperation(ModelOperation):
 
 class FieldRelatedOptionOperation(ModelOptionOperation):
     def reduce(self, operation, in_between, app_label=None):
-        if (isinstance(operation, FieldOperation) and
+        if (isinstance(operation, BaseFieldOperation) and
                 self.name_lower == operation.model_name_lower and
                 not self.references_field(operation.model_name, operation.name)):
             return [operation, self]
