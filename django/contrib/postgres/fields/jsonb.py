@@ -4,7 +4,7 @@ from psycopg2.extras import Json
 
 from django.contrib.postgres import forms, lookups
 from django.core import exceptions
-from django.db.models import Field, Transform
+from django.db.models import Field, TextField, Transform
 from django.utils.translation import ugettext_lazy as _
 
 __all__ = ['JSONField']
@@ -60,6 +60,8 @@ JSONField.register_lookup(lookups.HasAnyKeys)
 
 
 class KeyTransform(Transform):
+    operator = '->'
+    nested_operator = '#>'
 
     def __init__(self, key_name, *args, **kwargs):
         super(KeyTransform, self).__init__(*args, **kwargs)
@@ -73,14 +75,20 @@ class KeyTransform(Transform):
             previous = previous.lhs
         lhs, params = compiler.compile(previous)
         if len(key_transforms) > 1:
-            return "{} #> %s".format(lhs), [key_transforms] + params
+            return "(%s %s %%s)" % (lhs, self.nested_operator), [key_transforms] + params
         try:
             int(self.key_name)
         except ValueError:
             lookup = "'%s'" % self.key_name
         else:
             lookup = "%s" % self.key_name
-        return "%s -> %s" % (lhs, lookup), params
+        return "(%s %s %s)" % (lhs, self.operator, lookup), params
+
+
+class KeyTextTransform(KeyTransform):
+    operator = '->>'
+    nested_operator = '#>>'
+    _output_field = TextField()
 
 
 class KeyTransformFactory(object):
