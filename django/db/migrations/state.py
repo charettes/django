@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import copy
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 
 from django.apps import AppConfig
@@ -99,6 +99,22 @@ class ProjectState(object):
             # Need to do this explicitly since unregister_model() doesn't clear
             # the cache automatically (#24513)
             self.apps.clear_cache()
+
+    @property
+    def relations(self):
+        from django.db.migrations.autodetector import resolve_model_key
+        relations = defaultdict(lambda: defaultdict(list))
+        for model_key, model_state in self.models.items():
+            for field_name, field in model_state.fields:
+                remote_field = field.remote_field
+                if remote_field:
+                    remote_model_key = resolve_model_key(remote_field.model, *model_key)
+                    relations[remote_model_key][model_key].append((field_name, field))
+                    through = getattr(remote_field, 'through', None)
+                    if through:
+                        through_model_key = resolve_model_key(through, *model_key)
+                        relations[through_model_key][model_key].append((field_name, field))
+        return relations
 
     def reload_model(self, app_label, model_name):
         if 'apps' in self.__dict__:  # hasattr would cache the property
