@@ -104,16 +104,48 @@ class ProjectState(object):
     def relations(self):
         from django.db.migrations.autodetector import resolve_model_key
         relations = defaultdict(lambda: defaultdict(list))
+        swappables = set()
+        concretes = {}
+        proxies = {}
+        # Partition proxies and concrete models as foo
+        print(self.models)
         for model_key, model_state in self.models.items():
+            if model_state.options.get('swappable'):
+                print(model_key)
+            if model_state.options.get('proxy', False):
+                proxies[model_key] = model_state
+            else:
+                concretes[model_key] = model_key
+        for model_key, model_state in proxies.items():
+            bases = list(model_state.bases)
+            while bases:
+                base = bases.pop()
+                if isinstance(base, six.string_types):
+                    base_key = tuple(base.split('.'))
+                    if base_key in proxies:
+                        base_state = self.models[base_key]
+                        bases = list(base_state.bases)
+                    else:
+                        concretes[model_key] = base_key
+                        break
+        real_apps = set(self.real_apps)
+        for model_key in concretes:
+            model_state = self.models[model_key]
             for field_name, field in model_state.fields:
                 remote_field = field.remote_field
                 if remote_field:
                     remote_model_key = resolve_model_key(remote_field.model, *model_key)
+                    if remote_model_key[0] not in real_apps:
+                        remote_model_key = concretes[remote_model_key]
                     relations[remote_model_key][model_key].append((field_name, field))
                     through = getattr(remote_field, 'through', None)
                     if through:
                         through_model_key = resolve_model_key(through, *model_key)
+                        if through_model_key[0] not in real_apps:
+                            through_model_key = concretes[through_model_key]
                         relations[through_model_key][model_key].append((field_name, field))
+        for model_key in proxies:
+            relations[model_key] = relations[concretes[model_key]]
         return relations
 
     def reload_model(self, app_label, model_name):
