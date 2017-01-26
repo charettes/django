@@ -966,8 +966,8 @@ class AutodetectorTests(TestCase):
         # Right number/type of migrations?
         self.assertNumberMigrations(changes, 'testapp', 1)
         self.assertOperationTypes(changes, 'testapp', 0, ["CreateModel", "CreateModel"])
-        self.assertOperationAttributes(changes, "testapp", 0, 0, name="Author")
-        self.assertOperationAttributes(changes, "testapp", 0, 1, name="Publisher")
+        self.assertOperationAttributes(changes, "testapp", 0, 0, name="Publisher")
+        self.assertOperationAttributes(changes, "testapp", 0, 1, name="Author")
         self.assertMigrationDependencies(changes, 'testapp', 0, [("otherapp", "auto_1")])
         # Right number/type of migrations?
         self.assertNumberMigrations(changes, 'otherapp', 2)
@@ -1676,8 +1676,8 @@ class AutodetectorTests(TestCase):
         self.assertOperationTypes(changes, "testapp", 0, [
             "CreateModel", "CreateModel", "CreateModel", "AddField"
         ])
-        self.assertOperationAttributes(changes, 'testapp', 0, 0, name="Publisher")
-        self.assertOperationAttributes(changes, 'testapp', 0, 1, name="Author")
+        self.assertOperationAttributes(changes, 'testapp', 0, 0, name="Author")
+        self.assertOperationAttributes(changes, 'testapp', 0, 1, name="Publisher")
         self.assertOperationAttributes(changes, 'testapp', 0, 2, name="Contract")
         self.assertOperationAttributes(changes, 'testapp', 0, 3, model_name='author', name='publishers')
 

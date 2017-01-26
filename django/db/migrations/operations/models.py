@@ -106,32 +106,25 @@ class CreateModel(ModelOperation):
         if name_lower == self.name_lower:
             return True
 
-        # Check we didn't inherit from the model
-        models_to_check = [
-            base for base in self.bases
-            if base is not models.Model and isinstance(base, (models.base.ModelBase, str))
-        ]
-        # Check we have no FKs/M2Ms with it
-        for fname, field in self.fields:
-            if field.remote_field:
-                models_to_check.append(field.remote_field.model)
-        # Now go over all the models and check against them
-        for model in models_to_check:
-            model_app_label, model_name = self.model_to_key(model)
-            if model_name.lower() == name_lower:
-                if app_label is None or not model_app_label or model_app_label == app_label:
-                    return True
-        return False
+        referenced_models = set()
 
-    def model_to_key(self, model):
-        """
-        Take either a model class or an "app_label.ModelName" string
-        and return (app_label, object_name).
-        """
-        if isinstance(model, str):
-            return model.split(".", 1)
-        else:
-            return model._meta.app_label, model._meta.object_name
+        for base in self.bases:
+            if base is not models.Model and isinstance(base, (models.base.ModelBase, str)):
+                referenced_models.add(self.model_to_key(base))
+
+        for _, field in self.fields:
+            if field.remote_field:
+                referenced_models.add(self.model_to_key(field.remote_field.model))
+                through = getattr(field.remote_field, 'through', None)
+                if through:
+                    referenced_models.add(self.model_to_key(through))
+
+        for referenced_app_label, referenced_model_name in referenced_models:
+            if (referenced_model_name == name_lower and
+                    app_label is None or not referenced_app_label or referenced_app_label == app_label):
+                return True
+
+        return False
 
     def reduce(self, operation, in_between, app_label=None):
         if (isinstance(operation, DeleteModel) and
@@ -162,18 +155,6 @@ class CreateModel(ModelOperation):
             ]
         elif isinstance(operation, FieldOperation) and self.name_lower == operation.model_name_lower:
             if isinstance(operation, AddField):
-                # Don't allow optimizations of FKs through models they reference
-                if hasattr(operation.field, "remote_field") and operation.field.remote_field:
-                    for between in in_between:
-                        # Check that it doesn't point to the model
-                        app_label, object_name = self.model_to_key(operation.field.remote_field.model)
-                        if between.references_model(object_name, app_label):
-                            return False
-                        # Check that it's not through the model
-                        if getattr(operation.field.remote_field, "through", None):
-                            app_label, object_name = self.model_to_key(operation.field.remote_field.through)
-                            if between.references_model(object_name, app_label):
-                                return False
                 return [
                     CreateModel(
                         self.name,

@@ -361,7 +361,7 @@ class OptimizerTests(SimpleTestCase):
         A CreateModel that inherits from another should not be reordered, to avoid
         moving it earlier than its parent CreateModel operation.
         """
-        self.assertDoesNotOptimize(
+        self.assertOptimizesTo(
             [
                 migrations.CreateModel("Other", [("foo", models.CharField(max_length=255))]),
                 migrations.CreateModel("ParentModel", [("bar", models.CharField(max_length=255))]),
@@ -372,6 +372,20 @@ class OptimizerTests(SimpleTestCase):
                 ),
                 migrations.AddField("Other", "fk", models.ForeignKey("migrations.ChildModel", models.CASCADE)),
             ],
+            [
+                migrations.CreateModel("ParentModel", [("bar", models.CharField(max_length=255))]),
+                migrations.CreateModel(
+                    "ChildModel",
+                    [("baz", models.CharField(max_length=255))],
+                    bases=('migrations.parentmodel',),
+                ),
+                migrations.CreateModel(
+                    "Other", [
+                        ("foo", models.CharField(max_length=255)),
+                        ("fk", models.ForeignKey("migrations.ChildModel", models.CASCADE)),
+                    ]
+                ),
+            ]
         )
 
     def test_create_model_add_field_not_through_m2m_through(self):
@@ -384,7 +398,7 @@ class OptimizerTests(SimpleTestCase):
         self.assertDoesNotOptimize(
             [
                 migrations.CreateModel("Foo", [("name", models.CharField(max_length=255))]),
-                migrations.CreateModel("LinkThrough", []),
+                migrations.CreateModel("LinkThrough", [('Foo', models.ForeignKey('migrations.Foo', models.CASCADE))]),
                 migrations.AddField(
                     "Foo", "link", models.ManyToManyField("migrations.Link", through="migrations.LinkThrough")
                 ),
