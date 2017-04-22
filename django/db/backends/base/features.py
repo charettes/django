@@ -227,6 +227,9 @@ class BaseDatabaseFeatures:
     supports_select_difference = True
     supports_slicing_ordering_in_compound = False
 
+    # Supports SQL 2003 FILTER (WHERE ...) in aggregate expressions
+    supports_aggregate_filter_clause = False
+
     # Does the backend support indexing a TextField?
     supports_index_on_text_field = True
 
