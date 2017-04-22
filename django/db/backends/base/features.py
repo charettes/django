@@ -227,6 +227,9 @@ class BaseDatabaseFeatures:
     supports_select_difference = True
     supports_slicing_ordering_in_compound = False
 
+    # Supports SQL 2003 FILTER (WHERE ...) in aggregate expressions
+    supports_aggregate_filter_clause = False
+
     def __init__(self, connection):
         self.connection = connection
 
