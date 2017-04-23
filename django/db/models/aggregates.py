@@ -2,7 +2,7 @@
 Classes to represent the definitions of aggregate functions.
 """
 from django.core.exceptions import FieldError
-from django.db.models.expressions import Func, Star, Case, When
+from django.db.models.expressions import Case, Func, Star, When
 from django.db.models.fields import DecimalField, FloatField, IntegerField
 
 __all__ = [
