@@ -776,9 +776,10 @@ class When(Expression):
     template = 'WHEN %(condition)s THEN %(result)s'
 
     def __init__(self, condition=None, then=None, **lookups):
+        from django.db.models.sql.where import WhereNode
         if lookups and condition is None:
             condition, lookups = Q(**lookups), None
-        if condition is None or not isinstance(condition, Q) or lookups:
+        if condition is None or not isinstance(condition, (Q, WhereNode)) or lookups:
             raise TypeError("__init__() takes either a Q object or lookups as keyword arguments")
         super().__init__(output_field=None)
         self.condition = condition
