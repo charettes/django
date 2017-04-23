@@ -6,14 +6,13 @@ from django.core.exceptions import FieldError
 from django.db import connection
 from django.db.models import (
     Avg, Count, DecimalField, DurationField, F, FloatField, Func, IntegerField,
-    Max, Min, Sum, Value,
-    Q)
+    Max, Min, Q, Sum, Value,
+)
 from django.test import TestCase
 from django.test.utils import Approximate, CaptureQueriesContext
 from django.utils import timezone
 
 from .models import Author, Book, Publisher, Store
-
 
 
 class FilteredAggregateTestCase(TestCase):
