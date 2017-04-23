@@ -2,7 +2,7 @@
 Classes to represent the definitions of aggregate functions.
 """
 from django.core.exceptions import FieldError
-from django.db.models.expressions import Func, Star
+from django.db.models.expressions import Func, Star, Case, When
 from django.db.models.fields import DecimalField, FloatField, IntegerField
 
 __all__ = [
@@ -14,6 +14,10 @@ class Aggregate(Func):
     contains_aggregate = True
     name = None
 
+    def __init__(self, *args, filter=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filter = filter
+
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
         # Aggregates are not allowed in UPDATE queries, so ignore for_save
         c = super().resolve_expression(query, allow_joins, reuse, summarize)
@@ -24,6 +28,10 @@ class Aggregate(Func):
                     before_resolved = self.get_source_expressions()[index]
                     name = before_resolved.name if hasattr(before_resolved, 'name') else repr(before_resolved)
                     raise FieldError("Cannot compute %s('%s'): '%s' is an aggregate" % (c.name, name, name))
+
+        if self.filter:
+            c.filter = c.filter.resolve_expression(query, allow_joins, reuse, summarize, for_save)
+
         return c
 
     @property
@@ -35,6 +43,34 @@ class Aggregate(Func):
 
     def get_group_by_cols(self):
         return []
+
+    def get_case_expression(self):
+        field = self.get_source_expressions()[0]
+        return Case(
+            When(
+                self.filter,
+                then=field
+            )
+        )
+
+    def as_sql(self, compiler, connection, **extra_context):
+        if self.filter:
+            supports_filter = connection.features.supports_aggregate_filter_clause
+
+            if not supports_filter:
+                case_statement = self.get_case_expression()
+                self.set_source_expressions([case_statement])
+
+            sql, params = super().as_sql(compiler, connection, **extra_context)
+
+            if supports_filter:
+                where_sql, where_params = self.filter.as_sql(compiler, connection, **extra_context)
+                sql = '%s FILTER (WHERE %s)' % (sql, where_sql)
+                params = params + where_params
+
+            return sql, params
+
+        return super().as_sql(compiler, connection, **extra_context)
 
 
 class Avg(Aggregate):
