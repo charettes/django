@@ -7,12 +7,38 @@ from django.db import connection
 from django.db.models import (
     Avg, Count, DecimalField, DurationField, F, FloatField, Func, IntegerField,
     Max, Min, Sum, Value,
-)
+    Q)
 from django.test import TestCase
 from django.test.utils import Approximate, CaptureQueriesContext
 from django.utils import timezone
 
 from .models import Author, Book, Publisher, Store
+
+
+
+class FilteredAggregateTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.a1 = Author.objects.create(name='test', age=40)
+        cls.a2 = Author.objects.create(name='test2', age=60)
+
+        cls.a1.friends.add(cls.a2)
+
+    def test_filtered_aggregates(self):
+        agg = Sum('age', filter=Q(name='test2'))
+        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 60)
+
+    def test_double_filtered_aggregates(self):
+        agg = Sum('age', filter=Q(Q(name='test2') & ~Q(name='test')))
+        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 60)
+
+    def test_excluded_aggregates(self):
+        agg = Sum('age', filter=~Q(name='test2'))
+        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 40)
+
+    def test_related_aggregates(self):
+        agg = Sum('friends__age', filter=Q(friends__name='test2'))
+        self.assertEqual(Author.objects.filter(name='test').aggregate(x=agg)['x'], 60)
 
 
 class AggregateTestCase(TestCase):
