@@ -76,6 +76,13 @@ class Aggregate(Func):
 
         return super().as_sql(compiler, connection, **extra_context)
 
+    def __repr__(self):
+        func_repr = super().__repr__()
+        if self.filter:
+            func_repr = '{repr} WHERE {filter}'.format(repr=func_repr, filter=self.filter)
+
+        return func_repr
+
 
 class Avg(Aggregate):
     function = 'AVG'
@@ -92,7 +99,7 @@ class Avg(Aggregate):
             expression = self.get_source_expressions()[0]
             from django.db.backends.oracle.functions import IntervalToSeconds, SecondsToInterval
             return compiler.compile(
-                SecondsToInterval(Avg(IntervalToSeconds(expression)))
+                SecondsToInterval(Avg(IntervalToSeconds(expression), filter=self.filter))
             )
         return super().as_sql(compiler, connection)
 
@@ -102,12 +109,16 @@ class Count(Aggregate):
     name = 'Count'
     template = '%(function)s(%(distinct)s%(expressions)s)'
 
-    def __init__(self, expression, distinct=False, **extra):
+    def __init__(self, expression, distinct=False, filter=None, **extra):
         if expression == '*':
             expression = Star()
+
+        if isinstance(expression, Star) and filter is not None:
+            raise ValueError('Star cannot be used with filter. Please specify a field.')
+
         super().__init__(
             expression, distinct='DISTINCT ' if distinct else '',
-            output_field=IntegerField(), **extra
+            output_field=IntegerField(), filter=filter, **extra
         )
 
     def __repr__(self):
