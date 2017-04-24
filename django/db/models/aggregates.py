@@ -54,8 +54,9 @@ class Aggregate(Func):
             else:
                 copy = self.copy()
                 condition = When(Q())
-                condition.set_source_expressions((self.filter, copy.get_source_expressions()[0]))
-                copy.set_source_expressions([Case(condition)])
+                source_expressions = copy.get_source_expressions()
+                condition.set_source_expressions((self.filter, source_expressions[0]))
+                copy.set_source_expressions([Case(condition)] + source_expressions[1:])
                 return super(Aggregate, copy).as_sql(compiler, connection, **extra_context)
 
         return super().as_sql(compiler, connection, **extra_context)
