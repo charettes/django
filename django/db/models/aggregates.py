@@ -4,6 +4,7 @@ Classes to represent the definitions of aggregate functions.
 from django.core.exceptions import FieldError
 from django.db.models.expressions import Case, Func, Star, When
 from django.db.models.fields import DecimalField, FloatField, IntegerField
+from django.db.models.query_utils import Q
 
 __all__ = [
     'Aggregate', 'Avg', 'Count', 'Max', 'Min', 'StdDev', 'Sum', 'Variance',
@@ -13,6 +14,7 @@ __all__ = [
 class Aggregate(Func):
     contains_aggregate = True
     name = None
+    filter_template = '%s FILTER (WHERE %%(filter)s)'
 
     def __init__(self, *args, filter=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,10 +30,8 @@ class Aggregate(Func):
                     before_resolved = self.get_source_expressions()[index]
                     name = before_resolved.name if hasattr(before_resolved, 'name') else repr(before_resolved)
                     raise FieldError("Cannot compute %s('%s'): '%s' is an aggregate" % (c.name, name, name))
-
         if self.filter:
             c.filter = c.filter.resolve_expression(query, allow_joins, reuse, summarize, for_save)
-
         return c
 
     @property
@@ -44,44 +44,28 @@ class Aggregate(Func):
     def get_group_by_cols(self):
         return []
 
-    def get_case_expression_aggregate(self):
-        copied = self.copy()
-        field = copied.get_source_expressions()[0]
-
-        case_statement = Case(
-            When(
-                self.filter,
-                then=field
-            )
-        )
-        copied.set_source_expressions([case_statement])
-        copied._has_case_expression = True
-        return copied
-
     def as_sql(self, compiler, connection, **extra_context):
-        if self.filter and not getattr(self, '_has_case_expression', False):
-            supports_filter = connection.features.supports_aggregate_filter_clause
-
-            if not supports_filter:
-                case_aggregate = self.get_case_expression_aggregate()
-
-                return case_aggregate.as_sql(compiler, connection, **extra_context)
+        if self.filter:
+            if connection.features.supports_aggregate_filter_clause:
+                filter_sql, filter_params = self.filter.as_sql(compiler, connection)
+                template = self.filter_template % extra_context.get('template', self.template)
+                sql, params = super().as_sql(compiler, connection, template=template, filter=filter_sql)
+                return sql, params + filter_params
             else:
-                sql, params = super().as_sql(compiler, connection, **extra_context)
-                where_sql, where_params = self.filter.as_sql(compiler, connection, **extra_context)
-                sql = '%s FILTER (WHERE %s)' % (sql, where_sql)
-                params = params + where_params
-
-                return sql, params
+                copy = self.copy()
+                condition = When(Q())
+                condition.set_source_expressions((self.filter, copy.get_source_expressions()[0]))
+                copy.set_source_expressions([Case(condition)])
+                return super(Aggregate, copy).as_sql(compiler, connection, **extra_context)
 
         return super().as_sql(compiler, connection, **extra_context)
 
     def __repr__(self):
-        func_repr = super().__repr__()
-        if self.filter:
-            func_repr = '{repr} WHERE {filter}'.format(repr=func_repr, filter=self.filter)
-
-        return func_repr
+        return "{}({}, filter={})".format(
+            self.__class__.__name__,
+            self.arg_joiner.join(str(arg) for arg in self.source_expressions),
+            self.filter,
+        )
 
 
 class Avg(Aggregate):
