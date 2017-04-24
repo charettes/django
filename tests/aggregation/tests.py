@@ -25,24 +25,24 @@ class FilteredAggregateTestCase(TestCase):
 
     def test_filtered_aggregates(self):
         agg = Sum('age', filter=Q(name='test2'))
-        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 60)
+        self.assertEqual(Author.objects.aggregate(age=agg)['age'], 60)
 
     def test_double_filtered_aggregates(self):
         agg = Sum('age', filter=Q(Q(name='test2') & ~Q(name='test')))
-        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 60)
+        self.assertEqual(Author.objects.aggregate(age=agg)['age'], 60)
 
     def test_excluded_aggregates(self):
         agg = Sum('age', filter=~Q(name='test2'))
-        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 40)
+        self.assertEqual(Author.objects.aggregate(age=agg)['age'], 40)
 
     def test_related_aggregates(self):
         agg = Sum('friends__age', filter=Q(friends__name='test2'))
-        self.assertEqual(Author.objects.filter(name='test').aggregate(x=agg)['x'], 60)
+        self.assertEqual(Author.objects.filter(name='test').aggregate(age=agg)['age'], 60)
 
     def test_case_aggregate(self):
         agg = Sum(Case(When(friends__age=40, then=F('friends__age'))),
                   filter=Q(friends__age=40))
-        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 40)
+        self.assertEqual(Author.objects.aggregate(age=agg)['age'], 40)
 
     def test_aggregate_str(self):
         q = Q(name='test')
