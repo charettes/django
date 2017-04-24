@@ -5,8 +5,8 @@ from decimal import Decimal
 from django.core.exceptions import FieldError
 from django.db import connection
 from django.db.models import (
-    Avg, Count, DecimalField, DurationField, F, FloatField, Func, IntegerField,
-    Max, Min, Q, Sum, Value,
+    Avg, Case, Count, DecimalField, DurationField, F, FloatField, Func,
+    IntegerField, Max, Min, Q, Sum, Value, When,
 )
 from django.test import TestCase
 from django.test.utils import Approximate, CaptureQueriesContext
@@ -38,6 +38,20 @@ class FilteredAggregateTestCase(TestCase):
     def test_related_aggregates(self):
         agg = Sum('friends__age', filter=Q(friends__name='test2'))
         self.assertEqual(Author.objects.filter(name='test').aggregate(x=agg)['x'], 60)
+
+    def test_case_aggregate(self):
+        agg = Sum(Case(When(friends__age=40, then=F('friends__age'))),
+                  filter=Q(friends__age=40))
+        self.assertEqual(Author.objects.aggregate(x=agg)['x'], 40)
+
+    def test_aggregate_str(self):
+        q = Q(name='test')
+        agg = Sum('test', filter=q)
+        self.assertIn(str(q), str(agg))
+
+    def test_sum_star_exception(self):
+        with self.assertRaisesMessage(ValueError, 'Star cannot be used with filter. Please specify a field.'):
+            Count('*', filter=Q(age=40))
 
 
 class AggregateTestCase(TestCase):
