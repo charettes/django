@@ -44,31 +44,35 @@ class Aggregate(Func):
     def get_group_by_cols(self):
         return []
 
-    def get_case_expression(self):
-        field = self.get_source_expressions()[0]
-        return Case(
+    def get_case_expression_aggregate(self):
+        copied = self.copy()
+        field = copied.get_source_expressions()[0]
+
+        case_statement = Case(
             When(
                 self.filter,
                 then=field
             )
         )
+        copied.set_source_expressions([case_statement])
+        copied._has_case_expression = True
+        return copied
 
     def as_sql(self, compiler, connection, **extra_context):
-        if self.filter:
+        if self.filter and not getattr(self, '_has_case_expression', False):
             supports_filter = connection.features.supports_aggregate_filter_clause
 
             if not supports_filter:
-                case_statement = self.get_case_expression()
-                self.set_source_expressions([case_statement])
+                case_aggregate = self.get_case_expression_aggregate()
 
-            sql, params = super().as_sql(compiler, connection, **extra_context)
-
-            if supports_filter:
+                return case_aggregate.as_sql(compiler, connection, **extra_context)
+            else:
+                sql, params = super().as_sql(compiler, connection, **extra_context)
                 where_sql, where_params = self.filter.as_sql(compiler, connection, **extra_context)
                 sql = '%s FILTER (WHERE %s)' % (sql, where_sql)
                 params = params + where_params
 
-            return sql, params
+                return sql, params
 
         return super().as_sql(compiler, connection, **extra_context)
 
