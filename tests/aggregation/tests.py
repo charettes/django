@@ -1,7 +1,9 @@
 import datetime
 import re
+import unittest
 from decimal import Decimal
 
+from django.contrib.postgres.aggregates import StringAgg
 from django.core.exceptions import FieldError
 from django.db import connection
 from django.db.models import (
@@ -52,6 +54,12 @@ class FilteredAggregateTestCase(TestCase):
     def test_sum_star_exception(self):
         with self.assertRaisesMessage(ValueError, 'Star cannot be used with filter. Please specify a field.'):
             Count('*', filter=Q(age=40))
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', "PostgreSQL specific tests")
+    def test_aggregate_multiple_parameters(self):
+        q = Q(name='test')
+        agg = StringAgg(F('name'), delimiter=';', filter=q)
+        self.assertEqual(Author.objects.aggregate(name=agg)['name'], 'test')
 
 
 class AggregateTestCase(TestCase):
