@@ -3,7 +3,6 @@ import re
 import unittest
 from decimal import Decimal
 
-from django.contrib.postgres.aggregates import StringAgg
 from django.core.exceptions import FieldError
 from django.db import connection
 from django.db.models import (
@@ -57,6 +56,7 @@ class FilteredAggregateTestCase(TestCase):
 
     @unittest.skipUnless(connection.vendor == 'postgresql', "PostgreSQL specific tests")
     def test_aggregate_multiple_parameters(self):
+        from django.contrib.postgres.aggregates import StringAgg
         q = Q(name='test')
         agg = StringAgg(F('name'), delimiter=';', filter=q)
         self.assertEqual(Author.objects.aggregate(name=agg)['name'], 'test')
