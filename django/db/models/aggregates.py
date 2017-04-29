@@ -62,6 +62,9 @@ class Aggregate(Func):
         return super().as_sql(compiler, connection, **extra_context)
 
     def __repr__(self):
+        if self.filter is None:
+            return super().__repr__()
+
         return "{}({}, filter={})".format(
             self.__class__.__name__,
             self.arg_joiner.join(str(arg) for arg in self.source_expressions),
