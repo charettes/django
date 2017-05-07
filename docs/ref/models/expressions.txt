@@ -339,7 +339,7 @@ some complex computations::
 
 The ``Aggregate`` API is as follows:
 
-.. class:: Aggregate(expression, output_field=None, **extra)
+.. class:: Aggregate(expression, output_field=None, filter=None, **extra)
 
     .. attribute:: template
 
@@ -372,6 +372,9 @@ should define the desired ``output_field``. For example, adding an
 
 The ``**extra`` kwargs are ``key=value`` pairs that can be interpolated
 into the ``template`` attribute.
+
+The ``filter`` argument requires a ``django.db.Q`` object which will be used
+to filter the aggregation.
 
 Creating your own Aggregate Functions
 -------------------------------------

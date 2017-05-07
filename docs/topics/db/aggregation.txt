@@ -84,6 +84,12 @@ In a hurry? Here's how to do common aggregate queries, assuming the models above
     >>> pubs[0].num_books
     73
 
+    # Each publisher, with a count of books with a rating above 5
+    >>> from django.db.models import Q
+    >>> pubs = Publisher.objects.annotate(num_books=Count('book', filter=Q(book__rating__gt=5)))
+    >>> pubs[0].num_books
+    23
+
     # The top 5 publishers, in order by number of books.
     >>> pubs = Publisher.objects.annotate(num_books=Count('book')).order_by('-num_books')[:5]
     >>> pubs[0].num_books
@@ -339,6 +345,20 @@ you can issue the query::
 This query generates an annotated result set, and then generates a filter
 based upon that annotation.
 
+If you need two annotations with two separate filters you can use the ``filter``
+argument with any aggregate. For example, to generate a list of authors with a
+count of highly rated books you can issue the query::
+
+    >>> Author.objects.annotate(num_books=Count('books'), highly_rated_books=Count('books', filter=Q(books__rating__gte=7)))
+
+Each Author object in the annotated result set will have a ``num_books`` as well as a
+``highly_rated_books`` attribute.
+
+.. versionchanged:: 2.0
+
+    The filter argument to annotations was added
+
+
 Order of ``annotate()`` and ``filter()`` clauses
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -359,7 +379,7 @@ Given:
 
 Here's an example with the ``Count`` aggregate::
 
-    >>> a, b = Publisher.objects.annotate(num_books=Count('book', distinct=True)).filter(book__rating__gt=3.0)
+    >>> a, b = Publisher.objects.annotate(num_books=Count('book', distinct=True)).filter(book__rating__gte=3.0)
     >>> a, a.num_books
     (<Publisher: A>, 2)
     >>> b, b.num_books

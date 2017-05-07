@@ -226,6 +226,11 @@ Models
   number of rows fetched by the Python database client when streaming results
   from the database. For databases that don't support server-side cursors, it
   controls the number of results Django fetches from the database adapter.
+Aggregations
+~~~~~~~~~~~~
+
+* Built in aggregates now accept a `filter` parameter that can be used to
+  exclude elements from an aggregate based on a condition.
 
 Requests and Responses
 ~~~~~~~~~~~~~~~~~~~~~~
