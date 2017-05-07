@@ -62,8 +62,7 @@ class FilteredAggregateTestCase(TestCase):
     def test_plain_annotate(self):
         agg = Sum('book__pages', filter=Q(book__rating__gt=3))
         qs = Author.objects.annotate(pages=agg)
-        results = [a.pages for a in qs]
-        self.assertSequenceEqual(results, [447, None])
+        self.assertSequenceEqual([a.pages for a in qs], [447, None])
 
     def test_filtered_aggregate_on_annotate(self):
         pages_annotate = Sum('book__pages', filter=Q(book__rating__gt=3))
