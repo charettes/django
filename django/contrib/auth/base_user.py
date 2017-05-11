@@ -8,7 +8,9 @@ from django.contrib.auth import password_validation
 from django.contrib.auth.hashers import (
     check_password, is_password_usable, make_password,
 )
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
+from django.db.models.query_utils import DeferredAttribute
 from django.utils.crypto import get_random_string, salted_hmac
 from django.utils.translation import gettext_lazy as _
 
@@ -44,11 +46,26 @@ class BaseUserManager(models.Manager):
         return self.get(**{self.model.USERNAME_FIELD: username})
 
 
+class IsActiveAttribute(DeferredAttribute):
+    def __init__(self):
+        # The second arg to DeferredAttribute.__init__ is ignored.
+        super(IsActiveAttribute, self).__init__('is_active', None)
+
+    def __get__(self, instance, cls=None):
+        if cls is None:
+            return self
+        try:
+            cls._meta.get_field('is_active')
+        except FieldDoesNotExist:
+            return True
+        return super(IsActiveAttribute, self).__get__(instance, cls)
+
+
 class AbstractBaseUser(models.Model):
     password = models.CharField(_('password'), max_length=128)
     last_login = models.DateTimeField(_('last login'), blank=True, null=True)
 
-    is_active = True
+    is_active = IsActiveAttribute()
 
     REQUIRED_FIELDS = []
 

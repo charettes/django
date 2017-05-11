@@ -264,6 +264,9 @@ class IsActiveTestCase(TestCase):
         user_fetched = User.objects.get(pk=user.pk)
         # the is_active flag is saved
         self.assertFalse(user_fetched.is_active)
+        # the is_active flag is fetched
+        defered_user = User.objects.defer('is_active').get(pk=user.pk)
+        self.assertFalse(defered_user.is_active)
 
     @override_settings(AUTH_USER_MODEL='auth_tests.IsActiveTestUser1')
     def test_is_active_field_default(self):
