@@ -384,6 +384,9 @@ class Query:
                 new_expr, col_cnt = self.rewrite_cols(expr, col_cnt)
                 new_exprs.append(new_expr)
         annotation.set_source_expressions(new_exprs)
+        filter_ = getattr(annotation, 'filter', None)
+        if filter_:
+            annotation.filter, col_cnt = self.rewrite_cols(filter_, col_cnt)
         return annotation, col_cnt
 
     def get_aggregation(self, using, added_aggregate_names):

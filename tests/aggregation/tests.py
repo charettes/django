@@ -67,7 +67,7 @@ class FilteredAggregateTestCase(TestCase):
     def test_filtered_aggregate_on_annotate(self):
         pages_annotate = Sum('book__pages', filter=Q(book__rating__gt=3))
         age_agg = Sum('age', filter=Q(total_pages__gte=400))
-        self.assertEqual(Author.objects.annotate(total_pages=pages_annotate).aggregate(summed_age=age_agg), [])
+        self.assertEqual(Author.objects.annotate(total_pages=pages_annotate).aggregate(summed_age=age_agg), {'summed_age': 40})
 
     def test_case_aggregate(self):
         agg = Sum(Case(When(friends__age=40, then=F('friends__age'))),
