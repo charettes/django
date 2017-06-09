@@ -17,21 +17,37 @@ class Aggregate(Func):
     filter_template = '%s FILTER (WHERE %%(filter)s)'
 
     def __init__(self, *args, filter=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.filter = filter
+        super().__init__(*args, **kwargs)
+
+    def get_source_fields(self):
+        # We're not interested in the filter expression.
+        return [e._output_field_or_none for e in super().get_source_expressions()]
+
+    def get_source_expressions(self):
+        source_expressions = super(Aggregate, self).get_source_expressions()
+        if self.filter:
+            source_expressions += [self.filter]
+        return source_expressions
+
+    def set_source_expressions(self, exprs):
+        if self.filter:
+            self.filter = exprs[-1]
+            exprs = exprs[:-1]
+        return super(Aggregate, self).set_source_expressions(exprs)
 
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
         # Aggregates are not allowed in UPDATE queries, so ignore for_save
         c = super().resolve_expression(query, allow_joins, reuse, summarize)
+        if c.filter:
+            c.filter = c.filter.resolve_expression(query, allow_joins, reuse, summarize)
         if not summarize:
-            expressions = c.get_source_expressions()
+            expressions = super(Aggregate, c).get_source_expressions()
             for index, expr in enumerate(expressions):
                 if expr.contains_aggregate:
                     before_resolved = self.get_source_expressions()[index]
                     name = before_resolved.name if hasattr(before_resolved, 'name') else repr(before_resolved)
                     raise FieldError("Cannot compute %s('%s'): '%s' is an aggregate" % (c.name, name, name))
-        if self.filter:
-            c.filter = c.filter.resolve_expression(query, allow_joins, reuse, summarize, for_save)
         return c
 
     @property
@@ -53,9 +69,10 @@ class Aggregate(Func):
                 return sql, params + filter_params
             else:
                 copy = self.copy()
+                copy.filter = None
                 condition = When(Q())
                 source_expressions = copy.get_source_expressions()
-                condition.set_source_expressions((self.filter, source_expressions[0]))
+                condition.set_source_expressions([self.filter, source_expressions[0]])
                 copy.set_source_expressions([Case(condition)] + source_expressions[1:])
                 return super(Aggregate, copy).as_sql(compiler, connection, **extra_context)
 
