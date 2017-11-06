@@ -1290,14 +1290,11 @@ class Query(BaseExpression):
             can_reuse.update(join_list)
 
         if join_info.final_field.is_relation:
-            # No support for transforms for relational fields
-            num_lookups = len(lookups)
-            if num_lookups > 1:
-                raise FieldError('Related Field got invalid lookup: {}'.format(lookups[0]))
             if len(targets) == 1:
                 col = _get_col(targets[0], join_info.final_field, alias, simple_col)
             else:
                 col = MultiColSource(alias, targets, join_info.targets, join_info.final_field)
+            col.join_path = join_info.path
         else:
             col = _get_col(targets[0], join_info.final_field, alias, simple_col)
 

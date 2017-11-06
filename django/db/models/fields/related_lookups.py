@@ -1,6 +1,7 @@
+from django.db.models.fields import BooleanField
 from django.db.models.lookups import (
     Exact, GreaterThan, GreaterThanOrEqual, In, IsNull, LessThan,
-    LessThanOrEqual,
+    LessThanOrEqual, Transform,
 )
 
 
@@ -152,3 +153,11 @@ class RelatedLessThanOrEqual(RelatedLookupMixin, LessThanOrEqual):
 
 class RelatedIsNull(RelatedLookupMixin, IsNull):
     pass
+
+
+class ManyToManyExists(Transform):
+    lookup_name = 'exists'
+    output_field = BooleanField()
+
+    def as_sql(self, compiler, connection):
+        import ipdb; ipdb.set_trace()
