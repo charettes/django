@@ -23,8 +23,9 @@ from .related_descriptors import (
     ReverseOneToOneDescriptor,
 )
 from .related_lookups import (
-    RelatedExact, RelatedGreaterThan, RelatedGreaterThanOrEqual, RelatedIn,
-    RelatedIsNull, RelatedLessThan, RelatedLessThanOrEqual,
+    ManyToManyExists, RelatedExact, RelatedGreaterThan,
+    RelatedGreaterThanOrEqual, RelatedIn, RelatedIsNull, RelatedLessThan,
+    RelatedLessThanOrEqual,
 )
 from .reverse_related import (
     ForeignObjectRel, ManyToManyRel, ManyToOneRel, OneToOneRel,
@@ -1643,3 +1644,9 @@ class ManyToManyField(RelatedField):
 
     def db_parameters(self, connection):
         return {"type": None, "check": None}
+
+    def get_transform(self, lookup_name):
+        return RelatedField.get_transform(self, lookup_name)
+
+
+ManyToManyField.register_lookup(ManyToManyExists)

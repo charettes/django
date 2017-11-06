@@ -1065,6 +1065,8 @@ class Query:
         if len(lookups) == 0:
             lookups = ['exact']
 
+        if any('exists' == lookup for lookup in lookups):
+            import ipdb; ipdb.set_trace()
         for name in lookups[:-1]:
             lhs = self.try_transform(lhs, name)
         # First try get_lookup() so that the lookup takes precedence if the lhs
@@ -1201,13 +1203,15 @@ class Query:
 
         if join_info.final_field.is_relation:
             # No support for transforms for relational fields
-            num_lookups = len(lookups)
-            if num_lookups > 1:
-                raise FieldError('Related Field got invalid lookup: {}'.format(lookups[0]))
+            #num_lookups = len(lookups)
+            #if num_lookups > 1:
+                #import ipdb; ipdb.set_trace()
+                #raise FieldError('Related Field got invalid lookup: {}'.format(lookups[0]))
             if len(targets) == 1:
                 col = targets[0].get_col(alias, join_info.final_field)
             else:
                 col = MultiColSource(alias, targets, join_info.targets, join_info.final_field)
+            col.join_path = join_info.path
         else:
             col = targets[0].get_col(alias, join_info.final_field)
 
