@@ -1,3 +1,4 @@
+from django.core.exceptions import EmptyResultSet
 from django.db.models.lookups import (
     Exact, GreaterThan, GreaterThanOrEqual, In, IsNull, LessThan,
     LessThanOrEqual,
@@ -130,8 +131,26 @@ class RelatedLookupMixin:
         return super().as_sql(compiler, connection)
 
 
+class _NullRelatedMultiple:
+    """
+    Sentinel for filter(m2m=Model(referred_field=None)) lookups to prevent
+    conversions to m2m__isnull=True which would include the wrong results
+    because of the resulting LOUTER join.
+    """
+
+
 class RelatedExact(RelatedLookupMixin, Exact):
-    pass
+    def get_prep_lookup(self):
+        from django.db.models import Model
+        if (getattr(self.lhs.output_field, 'multiple', False) and isinstance(self.rhs, Model) and
+                get_normalized_value(self.rhs, self.lhs)[0] is None):
+            return _NullRelatedMultiple
+        return super(RelatedExact, self).get_prep_lookup()
+
+    def as_sql(self, compiler, connection):
+        if self.rhs is _NullRelatedMultiple:
+            raise EmptyResultSet
+        return super(RelatedExact, self).as_sql(compiler, connection)
 
 
 class RelatedLessThan(RelatedLookupMixin, LessThan):
