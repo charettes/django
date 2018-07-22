@@ -6,6 +6,9 @@ from .base import Operation
 from .utils import (
     ModelTuple, field_references_model, is_referenced_by_foreign_key,
 )
+from django.db.migrations.state import ModelState
+from django.db.models.deletion import CASCADE
+from django.db.models.fields.related import ForeignKey
 
 
 class FieldOperation(Operation):
@@ -400,3 +403,61 @@ class RenameField(FieldOperation):
             super(FieldOperation, self).reduce(operation, app_label=app_label) or
             not operation.references_field(self.model_name, self.new_name, app_label)
         )
+
+
+class AddManyToManyThrough(FieldOperation):
+    def __init__(self, model_name, name, field):
+        if not field.many_to_many or not field.related_model.through:
+            raise TypeError('This operation can only operate on many-to-many fields with a through.')
+        super().__init__(model_name, name, field)
+
+    def state_forwards(self, app_label, state):
+        model_state = state.models[app_label, self.model_name_lower]
+        old_field = None
+        fields = []
+        for name, field in model_state.fields:
+            if name == self.name:
+                old_field = field
+                field = self.field
+            fields.append(field)
+        model_state.fields = fields
+        if old_field is None:
+            raise FieldDoesNotExist(
+                "%s.%s has no field named '%s'" % (app_label, self.model_name, self.name)
+            )
+        from_tuple = ModelTuple.from_model(self.model_name, app_label)
+        to_tuple = ModelTuple.from_model(self.field.related_model, app_label)
+        if from_tuple == to_tuple:
+            from_name = to_name = 'from_%s' % self.model_name
+        else:
+            from_name, to_name = from_tuple[1], to_tuple[1]
+        through_tuple = ModelTuple.from_model(self.field.remote_field.through, app_label)
+        from_field = ForeignKey(self.model_name, CASCADE)
+        to_field = ForeignKey(field.related_model, CASCADE)
+        through_options = {}
+        db_table = old_field.db_table
+        if not db_table:
+            # TODO: Handle the connection based name truncation here.
+            model_db_table = model_state.options.get('db_table')
+            if not model_db_table:
+                model_db_table = "%s_%s" % from_tuple
+            db_table = "%s_%s" % (model_db_table, name)
+        if db_table != "%s_%s" % through_tuple:
+            through_options['db_table'] = db_table
+        db_table = self.field._get_m2m_db_table(model_db_table)
+        through_state = ModelState(
+            *through_tuple,
+            fields=[
+                (from_name, from_field),
+                (to_name, to_field),
+            ],
+            options=through_options,
+        )
+        state.models[through_tuple] = through_state
+        state.reload_model(app_label, self.model_name_lower)
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        pass
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        pass

@@ -164,6 +164,18 @@ class MigrationAutodetector:
         self._prepare_field_lists()
         self._generate_through_model_map()
 
+        for app_label, model_name in set(self.old_model_keys).intersection(self.new_model_keys):
+            old_model_name = self.renamed_models.get((app_label, model_name), model_name)
+            old_model_state = self.from_state.models[app_label, old_model_name]
+            for old_field_name, old_field in old_model_state.fields:
+                if old_field.many_to_many and not old_field.remote_field.through:
+                    new_model_state = self.to_state.models[app_label, model_name]
+                    for new_field_name, new_field in new_model_state.fields:
+                        if (new_field_name == old_field_name and
+                                new_field.many_to_many and new_field.remote_field.through):
+                            pass
+                            import ipdb; ipdb.set_trace()
+
         # Generate non-rename model operations
         self.generate_deleted_models()
         self.generate_created_models()
@@ -513,6 +525,7 @@ class MigrationAutodetector:
             sorted(added_unmanaged_models, key=self.swappable_first_key, reverse=True)
         )
         for app_label, model_name in all_added_models:
+            import ipdb; ipdb.set_trace()
             model_state = self.to_state.models[app_label, model_name]
             model_opts = self.new_apps.get_model(app_label, model_name)._meta
             # Gather related fields

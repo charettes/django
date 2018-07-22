@@ -44,7 +44,7 @@ class CustomManyToManyField(RelatedField):
         if not self.remote_field.through and not cls._meta.abstract and not cls._meta.swapped:
             self.remote_field.through = create_many_to_many_intermediary_model(self, cls)
         setattr(cls, self.name, ManyToManyDescriptor(self.remote_field))
-        self.m2m_db_table = partial(self._get_m2m_db_table, cls._meta)
+        self.m2m_db_table = partial(self._get_m2m_db_table, cls._meta.db_table)
 
     def get_internal_type(self):
         return 'ManyToManyField'

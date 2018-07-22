@@ -1992,6 +1992,13 @@ class AutodetectorTests(TestCase):
         self.assertOperationAttributes(changes, 'testapp', 0, 2, name='Publisher')
         self.assertOperationFieldAttributes(changes, 'testapp', 0, 1, max_length=100)
 
+    def test_many_to_many_add_through(self):
+        changes = self.get_changes(
+            [self.publisher, self.author_with_m2m],
+            [self.publisher, self.contract, self.author_with_m2m_through]
+        )
+        import ipdb; ipdb.set_trace()
+
     def test_non_circular_foreignkey_dependency_removal(self):
         """
         If two models with a ForeignKey from one to the other are removed at the

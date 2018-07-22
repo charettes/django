@@ -1049,7 +1049,7 @@ def create_many_to_many_intermediary_model(field, klass):
         from_ = 'from_%s' % from_
 
     meta = type('Meta', (), {
-        'db_table': field._get_m2m_db_table(klass._meta),
+        'db_table': field._get_m2m_db_table(klass._meta.db_table),
         'auto_created': klass,
         'app_label': klass._meta.app_label,
         'db_tablespace': klass._meta.db_tablespace,
@@ -1496,7 +1496,7 @@ class ManyToManyField(RelatedField):
     def get_reverse_path_info(self, filtered_relation=None):
         return self._get_path_info(direct=False, filtered_relation=filtered_relation)
 
-    def _get_m2m_db_table(self, opts):
+    def _get_m2m_db_table(self, db_table):
         """
         Function that can be curried to provide the m2m table name for this
         relation.
@@ -1506,7 +1506,7 @@ class ManyToManyField(RelatedField):
         elif self.db_table:
             return self.db_table
         else:
-            m2m_table_name = '%s_%s' % (utils.strip_quotes(opts.db_table), self.name)
+            m2m_table_name = '%s_%s' % (utils.strip_quotes(db_table), self.name)
             return utils.truncate_name(m2m_table_name, connection.ops.max_name_length())
 
     def _get_m2m_attr(self, related, attr):
@@ -1592,7 +1592,7 @@ class ManyToManyField(RelatedField):
         setattr(cls, self.name, ManyToManyDescriptor(self.remote_field, reverse=False))
 
         # Set up the accessor for the m2m table name for the relation.
-        self.m2m_db_table = partial(self._get_m2m_db_table, cls._meta)
+        self.m2m_db_table = partial(self._get_m2m_db_table, cls._meta.db_table)
 
     def contribute_to_related_class(self, cls, related):
         # Internal M2Ms (i.e., those with a related name ending with '+')

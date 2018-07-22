@@ -223,6 +223,13 @@ class InteractiveMigrationQuestioner(MigrationQuestioner):
                 return self._ask_default(default='timezone.now')
         return None
 
+    def ask_through_add(self):
+        msg = (
+            "You are trying to define an explicit through model for the many-to-many %s.%s field. "
+            "Do you want to reuse the table"
+        )
+        return self._boolean_input(msg, False)
+
 
 class NonInteractiveMigrationQuestioner(MigrationQuestioner):
 
