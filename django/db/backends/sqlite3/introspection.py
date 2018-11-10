@@ -244,54 +244,38 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             # table_name is a view.
             pass
         else:
-            Token = sqlparse.tokens
-
-            _constraint = False
-            _check = False
-            _unique = False
-            _name = None
-            _columns = []
-
-            def update_constraints():
-                if _constraint or _check:
-                    constraints[_name] = {
-                        'columns': _columns,
+            # Check constraint parsing is based of SQLite syntax diagram.
+            # https://www.sqlite.org/syntaxdiagrams.html#table-constraint
+            statement = sqlparse.parse(table_schema)[0]
+            tokens = statement.flatten()
+            def next_ttype(ttype):
+                for token in tokens:
+                    if token.ttype == ttype:
+                        return token
+            for token in tokens:
+                name = None
+                if token.match(sqlparse.tokens.Keyword, 'CONSTRAINT'):
+                    # Table constraint
+                    name_token = next_ttype(sqlparse.tokens.Literal.String.Symbol)
+                    name = name_token.value[1:-1]
+                    token = next_ttype(sqlparse.tokens.Keyword)
+                if token.match(sqlparse.tokens.Keyword, 'CHECK'):
+                    # Column check constraint
+                    if name is None:
+                        column_token = next_ttype(sqlparse.tokens.Literal.String.Symbol)
+                        column = column_token.value[1:-1]
+                        name = '__check__%s' % column
+                        columns = [column]
+                    else:
+                        columns = []
+                    constraints[name] = {
+                        'check': True,
+                        'columns': columns,
                         'primary_key': False,
-                        'unique': _unique,
+                        'unique': False,
                         'foreign_key': False,
-                        'check': _check,
                         'index': False,
                     }
-
-            statement = sqlparse.parse(table_schema)[0]
-            for token in statement.flatten():
-                if token.match(Token.Keyword, 'CONSTRAINT'):
-                    _constraint = True
-                elif token.match(Token.Keyword, 'CHECK'):
-                    _check = True
-                elif token.match(Token.Keyword, 'UNIQUE'):
-                    _unique = True
-                elif token.match(Token.Punctuation, ','):
-                    update_constraints()
-                    _constraint = False
-                    _check = False
-                    _unique = False
-                    _name = None
-                    _columns = []
-                if _constraint:  # Table constraint
-                    if token.ttype == Token.Literal.String.Symbol:
-                        if _name is None:
-                            _name = token.value[1:-1]
-                        else:
-                            _columns.append(token.value[1:-1])
-                elif _check:  # Column check constraint
-                    if token.ttype == Token.Literal.String.Symbol:
-                        field_name = token.value[1:-1]
-                        _columns.append(field_name)
-                        _name = '__check__%s' % field_name
-            # If this is the last part, there isn't a terminating comma
-            # so update here also.
-            update_constraints()
 
         # Get the index info
         cursor.execute("PRAGMA index_list(%s)" % self.connection.ops.quote_name(table_name))
