@@ -375,7 +375,7 @@ class DeletionTests(TestCase):
         dictionary with the number of deletions for each object type.
         """
         Avatar.objects.bulk_create([Avatar(desc='a'), Avatar(desc='b'), Avatar(desc='c')])
-        avatars_count = Avatar.objects.count()
+        avatars_count = int(Avatar.objects.count())
         deleted, rows_count = Avatar.objects.all().delete()
         self.assertEqual(deleted, avatars_count)
 
@@ -385,11 +385,11 @@ class DeletionTests(TestCase):
         HiddenUser.objects.create(r=r)
         HiddenUserProfile.objects.create(user=h1)
         existed_objs = {
-            R._meta.label: R.objects.count(),
-            HiddenUser._meta.label: HiddenUser.objects.count(),
-            A._meta.label: A.objects.count(),
-            MR._meta.label: MR.objects.count(),
-            HiddenUserProfile._meta.label: HiddenUserProfile.objects.count(),
+            R._meta.label: int(R.objects.count()),
+            HiddenUser._meta.label: int(HiddenUser.objects.count()),
+            A._meta.label: int(A.objects.count()),
+            MR._meta.label: int(MR.objects.count()),
+            HiddenUserProfile._meta.label: int(HiddenUserProfile.objects.count()),
         }
         deleted, deleted_objs = R.objects.all().delete()
         for k, v in existed_objs.items():
@@ -413,12 +413,12 @@ class DeletionTests(TestCase):
         r.m_set.add(m2)
         r.save()
         existed_objs = {
-            R._meta.label: R.objects.count(),
-            HiddenUser._meta.label: HiddenUser.objects.count(),
-            A._meta.label: A.objects.count(),
-            MR._meta.label: MR.objects.count(),
-            HiddenUserProfile._meta.label: HiddenUserProfile.objects.count(),
-            M.m2m.through._meta.label: M.m2m.through.objects.count(),
+            R._meta.label: int(R.objects.count()),
+            HiddenUser._meta.label: int(HiddenUser.objects.count()),
+            A._meta.label: int(A.objects.count()),
+            MR._meta.label: int(MR.objects.count()),
+            HiddenUserProfile._meta.label: int(HiddenUserProfile.objects.count()),
+            M.m2m.through._meta.label: int(M.m2m.through.objects.count()),
         }
         deleted, deleted_objs = r.delete()
         self.assertEqual(deleted, sum(existed_objs.values()))

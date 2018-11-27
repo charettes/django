@@ -1752,7 +1752,7 @@ class SubclassFKTests(TestCase):
         # Model subclasses could not be deleted if a nullable foreign key
         # relates to a model that relates back.
 
-        num_celebs = Celebrity.objects.count()
+        num_celebs = int(Celebrity.objects.count())
         tvc = TvChef.objects.create(name="Huey")
         self.assertEqual(Celebrity.objects.count(), num_celebs + 1)
         Fan.objects.create(fan_of=tvc)

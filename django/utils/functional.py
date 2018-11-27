@@ -258,6 +258,14 @@ def new_method_proxy(func):
     return inner
 
 
+def reversed_operator(operator):
+    @wraps(operator)
+    def reversed_operator(self, other):
+        return operator(other, self)
+    reversed_operator.__name__ = 'r%s' % operator.__name__
+    return reversed_operator
+
+
 class LazyObject:
     """
     A wrapper for another class that can be used to delay instantiation of the
@@ -339,6 +347,7 @@ class LazyObject:
     __bytes__ = new_method_proxy(bytes)
     __str__ = new_method_proxy(str)
     __bool__ = new_method_proxy(bool)
+    __int__ = new_method_proxy(int)
 
     # Introspection support
     __dir__ = new_method_proxy(dir)
@@ -346,11 +355,26 @@ class LazyObject:
     # Need to pretend to be the wrapped class, for the sake of objects that
     # care about this (especially in equality tests)
     __class__ = property(new_method_proxy(operator.attrgetter("__class__")))
-    __eq__ = new_method_proxy(operator.eq)
     __lt__ = new_method_proxy(operator.lt)
-    __gt__ = new_method_proxy(operator.gt)
+    __le__ = new_method_proxy(operator.le)
+    __eq__ = new_method_proxy(operator.eq)
     __ne__ = new_method_proxy(operator.ne)
+    __gt__ = new_method_proxy(operator.gt)
+    __ge__ = new_method_proxy(operator.ge)
     __hash__ = new_method_proxy(hash)
+
+    # Numeric type emulation.
+    __add__ = new_method_proxy(operator.add)
+    __radd__ = new_method_proxy(operator.add)
+    __sub__ = new_method_proxy(operator.sub)
+    __rsub__ = new_method_proxy(reversed_operator(operator.sub))
+    __mul__ = new_method_proxy(operator.mul)
+    __rmul__ = new_method_proxy(operator.mul)
+    __truediv__ = new_method_proxy(operator.truediv)
+    __rtruediv__ = new_method_proxy(reversed_operator(operator.truediv))
+    __floordiv__ = new_method_proxy(operator.floordiv)
+    __rfloordiv__ = new_method_proxy(reversed_operator(operator.floordiv))
+    __neg__ = new_method_proxy(operator.neg)
 
     # List/Tuple/Dictionary methods support
     __getitem__ = new_method_proxy(operator.getitem)

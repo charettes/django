@@ -572,14 +572,14 @@ class ManyToManyQueryTests(TestCase):
     @skipUnlessDBFeature('supports_foreign_keys')
     def test_count_join_optimization(self):
         with CaptureQueriesContext(connection) as query:
-            self.article.publications.count()
+            int(self.article.publications.count())
         self.assertNotIn('JOIN', query[0]['sql'])
         self.assertEqual(self.nullable_target_article.publications.count(), 0)
 
     def test_count_join_optimization_disabled(self):
         with mock.patch.object(connection.features, 'supports_foreign_keys', False), \
                 CaptureQueriesContext(connection) as query:
-            self.article.publications.count()
+            int(self.article.publications.count())
         self.assertIn('JOIN', query[0]['sql'])
 
     @skipUnlessDBFeature('supports_foreign_keys')

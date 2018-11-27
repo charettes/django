@@ -6,7 +6,7 @@ import copy
 import operator
 import warnings
 from collections import OrderedDict, namedtuple
-from functools import lru_cache
+from functools import lru_cache, partial
 from itertools import chain
 
 from django.conf import settings
@@ -26,7 +26,7 @@ from django.db.models.sql.constants import CURSOR, GET_ITERATOR_CHUNK_SIZE
 from django.db.utils import NotSupportedError
 from django.utils import timezone
 from django.utils.deprecation import RemovedInDjango30Warning
-from django.utils.functional import cached_property, partition
+from django.utils.functional import cached_property, partition, SimpleLazyObject
 from django.utils.version import get_version
 
 # The maximum number of items to display in a QuerySet.__repr__
@@ -181,6 +181,15 @@ class FlatValuesListIterable(BaseIterable):
         compiler = queryset.query.get_compiler(queryset.db)
         for row in compiler.results_iter(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size):
             yield row[0]
+
+
+class QuerySetCount(SimpleLazyObject):
+    def __init__(self, queryset):
+        if queryset._result_cache is not None:
+            self._wrapped = len(queryset._result_cache)
+        else:
+            func = partial(queryset.query.get_count, using=queryset.db)
+            super(QuerySetCount, self).__init__(func)
 
 
 class QuerySet:
@@ -386,10 +395,7 @@ class QuerySet:
         If the QuerySet is already fully cached, return the length of the
         cached results set to avoid multiple SELECT COUNT(*) calls.
         """
-        if self._result_cache is not None:
-            return len(self._result_cache)
-
-        return self.query.get_count(using=self.db)
+        return QuerySetCount(self)
 
     def get(self, *args, **kwargs):
         """
