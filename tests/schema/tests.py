@@ -1204,6 +1204,75 @@ class SchemaTests(TransactionTestCase):
         # Ensure the foreign key reference was updated.
         self.assertForeignKeyExists(Book, 'author_id', 'schema_author', 'renamed')
 
+    @isolate_apps('schema')
+    def test_foreign_key_persistence(self):
+        class Author(Model):
+            name = CharField(max_length=255, unique=True)
+
+            class Meta:
+                app_label = 'schema'
+
+        class Book(Model):
+            author = ForeignKey(Author, CASCADE)
+
+            class Meta:
+                app_label = 'schema'
+
+        with connection.schema_editor() as editor:
+            editor.create_model(Author)
+            editor.create_model(Book)
+            favorite_book = ForeignKey(Book, CASCADE, null=True)
+            favorite_book.contribute_to_class(Author, 'favorite_book')
+            editor.add_field(Author, favorite_book)
+        # Ensure the foreign key reference was updated.
+        self.assertForeignKeyExists(Book, 'author_id', 'schema_author')
+        self.assertForeignKeyExists(Author, 'favorite_book_id', 'schema_book')
+        author = Author.objects.create()
+        book = Book.objects.create(author=author)
+        author.favorite_book = book
+        author.save()
+        with connection.cursor() as cursor:
+            for model in [Author, Book]:
+                result = cursor.execute(
+                    'SELECT sql FROM sqlite_master WHERE name = %s',
+                    (model._meta.db_table,)
+                ).fetchone()[0]
+                self.assertNotIn('__old', result)
+
+    @isolate_apps('schema')
+    def test_ticket_29182_models(self):
+        class File(Model):
+            class Meta:
+                app_label = 'schema'
+
+        class FileContent(Model):
+            class Meta:
+                app_label = 'schema'
+
+        class PlayBook(Model):
+            file = ForeignKey(File, CASCADE)
+
+            class Meta:
+                app_label = 'schema'
+
+        with connection.schema_editor(atomic=True) as editor:
+            editor.create_model(File)
+            editor.create_model(FileContent)
+            editor.create_model(PlayBook)
+            content = ForeignKey(FileContent, CASCADE)
+            content.contribute_to_class(File, 'content')
+            editor.add_field(File, content)
+        self.assertForeignKeyExists(PlayBook, 'file_id', 'schema_file')
+        self.assertForeignKeyExists(File, 'content_id', 'schema_filecontent')
+        with connection.cursor() as cursor:
+            for model in [File, FileContent, PlayBook]:
+                result = cursor.execute(
+                    'SELECT sql FROM sqlite_master WHERE name = %s',
+                    (model._meta.db_table,)
+                ).fetchone()[0]
+                print(result)
+                self.assertNotIn('__old', result)
+
     @skipIfDBFeature('interprets_empty_strings_as_nulls')
     def test_rename_keep_null_status(self):
         """
