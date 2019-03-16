@@ -36,16 +36,15 @@ class CheckConstraint(BaseConstraint):
         query = Query(model=model)
         where = query.build_where(self.check)
         compiler = query.get_compiler(connection=schema_editor.connection)
-        sql, params = where.as_sql(compiler, schema_editor.connection)
-        return sql % tuple(schema_editor.quote_value(p) for p in params)
+        return where.as_sql(compiler, schema_editor.connection)
 
     def constraint_sql(self, model, schema_editor):
-        check = self._get_check_sql(model, schema_editor)
-        return schema_editor._check_sql(self.name, check)
+        check_sql, params = self._get_check_sql(model, schema_editor)
+        return schema_editor._check_sql(self.name, check_sql), params
 
     def create_sql(self, model, schema_editor):
-        check = self._get_check_sql(model, schema_editor)
-        return schema_editor._create_check_sql(model, self.name, check)
+        check_sql, params = self._get_check_sql(model, schema_editor)
+        return schema_editor._create_check_sql(model, self.name, check_sql), params
 
     def remove_sql(self, model, schema_editor):
         return schema_editor._delete_check_sql(model, self.name)
@@ -78,25 +77,25 @@ class UniqueConstraint(BaseConstraint):
 
     def _get_condition_sql(self, model, schema_editor):
         if self.condition is None:
-            return None
+            return None, ()
         query = Query(model=model)
         where = query.build_where(self.condition)
         compiler = query.get_compiler(connection=schema_editor.connection)
-        sql, params = where.as_sql(compiler, schema_editor.connection)
-        return sql % tuple(schema_editor.quote_value(p) for p in params)
+        return where.as_sql(compiler, schema_editor.connection)
 
     def constraint_sql(self, model, schema_editor):
         fields = [model._meta.get_field(field_name).column for field_name in self.fields]
         condition = self._get_condition_sql(model, schema_editor)
-        return schema_editor._unique_sql(model, fields, self.name, condition=condition)
+        _, params = condition
+        return schema_editor._unique_sql(model, fields, self.name, condition=condition), params
 
     def create_sql(self, model, schema_editor):
         fields = [model._meta.get_field(field_name).column for field_name in self.fields]
-        condition = self._get_condition_sql(model, schema_editor)
-        return schema_editor._create_unique_sql(model, fields, self.name, condition=condition)
+        condition_sql, params = self._get_condition_sql(model, schema_editor)
+        return schema_editor._create_unique_sql(model, fields, self.name, condition=condition_sql), params
 
     def remove_sql(self, model, schema_editor):
-        condition = self._get_condition_sql(model, schema_editor)
+        condition = self._get_condition_sql(model, schema_editor)[0]
         return schema_editor._delete_unique_sql(model, self.name, condition=condition)
 
     def __repr__(self):

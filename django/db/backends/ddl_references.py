@@ -191,3 +191,6 @@ class Statement(Reference):
 
     def __str__(self):
         return self.template % self.parts
+
+    def __mod__(self, other):
+        return str(self) % other

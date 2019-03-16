@@ -57,24 +57,21 @@ class Index:
 
     def _get_condition_sql(self, model, schema_editor):
         if self.condition is None:
-            return None
+            return None, ()
         query = Query(model=model)
         query.add_q(self.condition)
         compiler = query.get_compiler(connection=schema_editor.connection)
         # Only the WhereNode is of interest for the partial index.
-        sql, params = query.where.as_sql(compiler=compiler, connection=schema_editor.connection)
-        # BaseDatabaseSchemaEditor does the same map on the params, but since
-        # it's handled outside of that class, the work is done here.
-        return sql % tuple(map(schema_editor.quote_value, params))
+        return query.where.as_sql(compiler=compiler, connection=schema_editor.connection)
 
     def create_sql(self, model, schema_editor, using=''):
         fields = [model._meta.get_field(field_name) for field_name, _ in self.fields_orders]
         col_suffixes = [order[1] for order in self.fields_orders]
-        condition = self._get_condition_sql(model, schema_editor)
+        condition, params = self._get_condition_sql(model, schema_editor)
         return schema_editor._create_index_sql(
             model, fields, name=self.name, using=using, db_tablespace=self.db_tablespace,
             col_suffixes=col_suffixes, opclasses=self.opclasses, condition=condition,
-        )
+        ), params
 
     def remove_sql(self, model, schema_editor):
         return schema_editor._delete_index_sql(model, self.name)

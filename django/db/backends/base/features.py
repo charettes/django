@@ -166,6 +166,9 @@ class BaseDatabaseFeatures:
     # Can we roll back DDL in a transaction?
     can_rollback_ddl = False
 
+    # Does it support parameters in DDL statements?
+    supports_ddl_params = True
+
     # Does it support operations requiring references rename in a transaction?
     supports_atomic_references_rename = True
 

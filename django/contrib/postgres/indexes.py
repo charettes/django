@@ -20,14 +20,14 @@ class PostgresIndex(Index):
 
     def create_sql(self, model, schema_editor, using=''):
         self.check_supported(schema_editor)
-        statement = super().create_sql(model, schema_editor, using=' USING %s' % self.suffix)
+        statement, params = super().create_sql(model, schema_editor, using=' USING %s' % self.suffix)
         with_params = self.get_with_params()
         if with_params:
             statement.parts['extra'] = 'WITH (%s) %s' % (
                 ', '.join(with_params),
                 statement.parts['extra'],
             )
-        return statement
+        return statement, params
 
     def check_supported(self, schema_editor):
         pass

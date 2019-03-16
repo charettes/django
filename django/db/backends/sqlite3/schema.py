@@ -296,8 +296,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         )
 
         # Run deferred SQL on correct table
-        for sql in self.deferred_sql:
-            self.execute(sql)
+        self._execute_deferred_sql()
         self.deferred_sql = []
         # Fix any PK-removed field
         if restore_pk_field:

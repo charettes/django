@@ -98,6 +98,14 @@ class BaseDatabaseSchemaEditor:
 
     # State-managing methods
 
+    def _execute_deferred_sql(self):
+        for sql in self.deferred_sql:
+            try:
+                sql, params = sql
+            except (TypeError, ValueError):
+                params = None
+            self.execute(sql, params)
+
     def __enter__(self):
         self.deferred_sql = []
         if self.atomic_migration:
@@ -107,8 +115,7 @@ class BaseDatabaseSchemaEditor:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if exc_type is None:
-            for sql in self.deferred_sql:
-                self.execute(sql)
+            self._execute_deferred_sql()
         if self.atomic_migration:
             self.atomic.__exit__(exc_type, exc_value, traceback)
 
@@ -294,11 +301,22 @@ class BaseDatabaseSchemaEditor:
         for fields in model._meta.unique_together:
             columns = [model._meta.get_field(field).column for field in fields]
             self.deferred_sql.append(self._create_unique_sql(model, columns))
-        constraints = [constraint.constraint_sql(model, self) for constraint in model._meta.constraints]
+        constraint_sqls = []
+        for constraint in model._meta.constraints:
+            constraint_sql, constraint_params = constraint.constraint_sql(model, self)
+            if not constraint_sql:
+                continue
+            if self.connection.features.supports_ddl_params:
+                constraint_sqls.append(constraint_sql)
+                params.extend(constraint_params)
+            else:
+                constraint_sqls.append(
+                    constraint_sql % tuple(self.quote_value(p) for p in constraint_params)
+                )
         # Make the table
         sql = self.sql_create_table % {
             "table": self.quote_name(model._meta.db_table),
-            "definition": ", ".join(constraint for constraint in (*column_sqls, *constraints) if constraint),
+            "definition": ", ".join(column_sqls + constraint_sqls),
         }
         if model._meta.db_tablespace:
             tablespace_sql = self.connection.ops.tablespace_sql(model._meta.db_tablespace)
@@ -331,9 +349,21 @@ class BaseDatabaseSchemaEditor:
             if isinstance(sql, Statement) and sql.references_table(model._meta.db_table):
                 self.deferred_sql.remove(sql)
 
+    def _execute_ddl(self, sql):
+        try:
+            ddl, params = sql
+        except (ValueError, TypeError):
+            params = None
+        else:
+            if not self.connection.features.supports_ddl_params:
+                ddl = ddl % tuple(params)
+                params = None
+        self.execute(ddl, params)
+
     def add_index(self, model, index):
         """Add an index on a model."""
-        self.execute(index.create_sql(model, self), params=None)
+        sql = index.create_sql(model, self)
+        self._execute_ddl(sql)
 
     def remove_index(self, model, index):
         """Remove an index from a model."""
@@ -342,8 +372,7 @@ class BaseDatabaseSchemaEditor:
     def add_constraint(self, model, constraint):
         """Add a check constraint to a model."""
         sql = constraint.create_sql(model, self)
-        if sql:
-            self.execute(sql)
+        self._execute_ddl(sql)
 
     def remove_constraint(self, model, constraint):
         """Remove a check constraint from a model."""
@@ -1049,9 +1078,17 @@ class BaseDatabaseSchemaEditor:
         if condition:
             # Databases support conditional unique constraints via a unique
             # index.
-            sql = self._create_unique_sql(model, fields, name=name, condition=condition)
-            if sql:
-                self.deferred_sql.append(sql)
+            try:
+                condition_sql, condition_params = condition
+            except (ValueError, TypeError):
+                condition_sql = condition
+                condition_params = None
+            create_unique_sql = self._create_unique_sql(model, fields, name=name, condition=condition_sql)
+            if create_unique_sql:
+                if condition_params and not self.connection.features.supports_ddl_params:
+                    create_unique_sql = create_unique_sql % tuple(condition_params)
+                    condition_params = None
+                self.deferred_sql.append((create_unique_sql, condition_params))
             return None
         constraint = self.sql_unique_constraint % {
             'columns': ', '.join(map(self.quote_name, fields)),
