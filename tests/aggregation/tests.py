@@ -222,6 +222,23 @@ class AggregateTestCase(TestCase):
             lambda b: (b.name, b.num_authors)
         )
 
+    def test_annotate_subquery(self):
+        books = Book.objects.filter(
+            rating__lt=4.5
+        ).annotate(
+            Avg("authors__age", as_subquery=True)
+        ).order_by("name")
+        print(str(books.query))
+        self.assertQuerysetEqual(
+            books, [
+                ('Artificial Intelligence: A Modern Approach', 51.5),
+                ('Practical Django Projects', 29.0),
+                ('Python Web Development with Django', Approximate(30.3, places=1)),
+                ('Sams Teach Yourself Django in 24 Hours', 45.0)
+            ],
+            lambda b: (b.name, b.authors__age__avg),
+        )
+
     def test_backwards_m2m_annotate(self):
         authors = Author.objects.filter(name__contains="a").annotate(Avg("book__rating")).order_by("name")
         self.assertQuerysetEqual(

@@ -2,7 +2,9 @@
 Classes to represent the definitions of aggregate functions.
 """
 from django.core.exceptions import FieldError
-from django.db.models.expressions import Case, Func, Star, When
+from django.db.models.expressions import (
+    Case, Func, OuterRef, Star, Subquery, When,
+)
 from django.db.models.fields import IntegerField
 from django.db.models.functions.mixins import (
     FixDurationInputMixin, NumericOutputFieldMixin,
@@ -21,11 +23,12 @@ class Aggregate(Func):
     window_compatible = True
     allow_distinct = False
 
-    def __init__(self, *expressions, distinct=False, filter=None, **extra):
+    def __init__(self, *expressions, distinct=False, filter=None, as_subquery=False, **extra):
         if distinct and not self.allow_distinct:
             raise TypeError("%s does not allow distinct." % self.__class__.__name__)
         self.distinct = distinct
         self.filter = filter
+        self.as_subquery = as_subquery
         super().__init__(*expressions, **extra)
 
     def get_source_fields(self):
@@ -43,6 +46,17 @@ class Aggregate(Func):
         return super().set_source_expressions(exprs)
 
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
+        if self.as_subquery:
+            aggregate = self.copy()
+            aggregate.as_subquery = False
+            subquery = query.model._base_manager.filter(
+                pk=OuterRef('pk'),
+            ).values('pk').annotate(
+                _subagg=aggregate
+            ).values('_subagg')
+            return Subquery(subquery).resolve_expression(
+                query, allow_joins, reuse, summarize, for_save
+            )
         # Aggregates are not allowed in UPDATE queries, so ignore for_save
         c = super().resolve_expression(query, allow_joins, reuse, summarize)
         c.filter = c.filter and c.filter.resolve_expression(query, allow_joins, reuse, summarize)
@@ -93,6 +107,8 @@ class Aggregate(Func):
             options['distinct'] = self.distinct
         if self.filter:
             options['filter'] = self.filter
+        if self.as_subquery:
+            options['as_subquery'] = self.as_subquery
         return options
 
 
