@@ -2,8 +2,9 @@
 Classes to represent the definitions of aggregate functions.
 """
 from django.core.exceptions import FieldError
+from django.db.models.constants import LOOKUP_SEP
 from django.db.models.expressions import (
-    Case, Func, OuterRef, Star, Subquery, When,
+    Case, F, Func, OuterRef, Star, Subquery, When,
 )
 from django.db.models.fields import IntegerField
 from django.db.models.functions.mixins import (
@@ -28,7 +29,7 @@ class Aggregate(Func):
             raise TypeError("%s does not allow distinct." % self.__class__.__name__)
         self.distinct = distinct
         self.filter = filter
-        self.as_subquery = as_subquery
+        self.as_subquery = as_subquery or not self.filter
         super().__init__(*expressions, **extra)
 
     def get_source_fields(self):
@@ -46,12 +47,45 @@ class Aggregate(Func):
         return super().set_source_expressions(exprs)
 
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
-        if self.as_subquery:
+        if self.as_subquery and not summarize:
             aggregate = self.copy()
             aggregate.as_subquery = False
-            subquery = query.model._base_manager.filter(
-                pk=OuterRef('pk'),
-            ).values('pk').annotate(
+            model = query.model
+            manager = model._base_manager
+            inner_attname = 'pk'
+            outer_attname = 'pk'
+            related_field = None
+            for expr in self.source_expressions:
+                if isinstance(expr, F):
+                    field_name = expr.name.split(LOOKUP_SEP, 1)[0]
+                    if field_name == 'pk':
+                        break
+                    if related_field is None:
+                        field = model._meta.get_field(field_name)
+                        if not field.remote_field:
+                            break
+                        related_field = field
+                    elif related_field.name != field_name:
+                        break
+                # TODO: Account for filter as well.
+            else:
+                if related_field is not None:
+                    path_info = related_field.get_path_info()
+                    manager = path_info[0].to_opts.model._base_manager
+                    remote_field = path_info[0].join_field.remote_field
+                    inner_attname = remote_field.get_attname()
+                    outer_attname = remote_field.target_field.get_attname()
+                    repointed_field_name = LOOKUP_SEP.join(
+                        path.join_field.name for path in path_info[1:]
+                    )
+                    aggregate.set_source_expressions([
+                        F(repointed_field_name + expr.name[len(related_field.name):]) if isinstance(expr, F) else expr
+                        for expr in self.source_expressions
+                    ])
+                    # TODO: Account for filter as well.
+            subquery = manager.filter(**{
+                inner_attname: OuterRef(outer_attname)
+            }).values(inner_attname).annotate(
                 _subagg=aggregate
             ).values('_subagg')
             return Subquery(subquery).resolve_expression(
