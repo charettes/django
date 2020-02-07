@@ -1,8 +1,8 @@
 from unittest import mock
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import IntegrityError, connection, models
-from django.db.models.constraints import BaseConstraint
+from django.db.models.constraints import BaseConstraint, UniqueConstraint
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
 from .models import ChildModel, Product, UniqueConstraintProduct
@@ -116,10 +116,8 @@ class CheckConstraintTests(TestCase):
 class UniqueConstraintTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.p1, cls.p2 = UniqueConstraintProduct.objects.bulk_create([
-            UniqueConstraintProduct(name='p1', color='red'),
-            UniqueConstraintProduct(name='p2'),
-        ])
+        cls.p1 = UniqueConstraintProduct.objects.create(name='p1', color='red')
+        cls.p2 = UniqueConstraintProduct.objects.create(name='p2')
 
     def test_eq(self):
         self.assertEqual(
@@ -225,3 +223,28 @@ class UniqueConstraintTests(TestCase):
     def test_condition_must_be_q(self):
         with self.assertRaisesMessage(ValueError, 'UniqueConstraint.condition must be a Q instance.'):
             models.UniqueConstraint(name='uniq', fields=['name'], condition='invalid')
+
+    def test_enforce(self):
+        constraint = UniqueConstraint(fields=['name'], name=None)
+        constraint.enforce(self.p1)
+        p3 = UniqueConstraintProduct(name=self.p1.name)
+        errors = {'name': ['Unique constraint product with this Name already exists.']}
+        with self.assertRaisesMessage(ValidationError, str(errors)):
+            constraint.enforce(p3)
+        constraint.enforce(p3, exclude_fields={'name'})
+
+    def test_enforce_multiple_fields(self):
+        constraint = UniqueConstraint(fields=['name', 'color'], name=None)
+        constraint.enforce(self.p1)
+        p3 = UniqueConstraintProduct(name=self.p1.name, color=self.p1.color)
+        errors = {NON_FIELD_ERRORS: ['Unique constraint product with this Name and Color already exists.']}
+        with self.assertRaisesMessage(ValidationError, str(errors)):
+            constraint.enforce(p3)
+        constraint.enforce(p3, exclude_fields={'color'})
+
+    def test_enforce_condition(self):
+        constraint = UniqueConstraint(
+            fields=['name', 'color'], condition=models.Q(name=self.p2), name=None
+        )
+        p3 = UniqueConstraintProduct(name=self.p1.name, color=self.p1.color)
+        constraint.enforce(p3)

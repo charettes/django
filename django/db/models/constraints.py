@@ -1,3 +1,5 @@
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
+from django.db import connection
 from django.db.models.query_utils import Q
 from django.db.models.sql.query import Query
 
@@ -25,6 +27,9 @@ class BaseConstraint:
     def clone(self):
         _, args, kwargs = self.deconstruct()
         return self.__class__(*args, **kwargs)
+
+    def enforce(self, instance, exclude_fields=None):
+        raise NotImplementedError
 
 
 class CheckConstraint(BaseConstraint):
@@ -123,3 +128,46 @@ class UniqueConstraint(BaseConstraint):
         if self.condition:
             kwargs['condition'] = self.condition
         return path, args, kwargs
+
+    def enforce(self, instance, exclude_fields=None):
+        if self.condition:
+            return
+        if exclude_fields and not exclude_fields.isdisjoint(self.fields):
+            return
+
+        opts = instance._meta
+        model = opts.model
+        lookup = {}
+        for field_name in self.fields:
+            field = opts.get_field(field_name)
+            model = field.model
+            lookup_value = getattr(instance, field.attname)
+            # TODO: Handle multiple backends with different feature flags.
+            if (lookup_value is None or
+                    (lookup_value == '' and connection.features.interprets_empty_strings_as_nulls)):
+                # no value, skip the lookup
+                return
+            if field.primary_key and not instance._state.adding:
+                # no need to check for unique primary key when editing
+                return
+            lookup[field_name] = lookup_value
+
+        queryset = model._default_manager.filter(**lookup)
+        # Exclude the current object from the query if we are editing an
+        # instance (as opposed to creating a new one)
+        # Note that we need to use the pk as defined by opts.model, not
+        # opts.pk. These can be different fields because model inheritance
+        # allows single model to have effectively multiple primary keys.
+        # Refs #17615.
+        pk = instance._get_pk_val(opts)
+        if not instance._state.adding and pk is not None:
+            queryset = queryset.exclude(pk=pk)
+        if not queryset.exists():
+            return
+
+        if len(self.fields) == 1:
+            key = self.fields[0]
+        else:
+            key = NON_FIELD_ERRORS
+        message = instance.unique_error_message(model, self.fields)
+        raise ValidationError({key: message})
