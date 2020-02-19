@@ -774,6 +774,11 @@ class Field(RegisterLookupMixin):
                     'get_%s_display' % self.name,
                     partialmethod(cls._get_FIELD_display, field=self),
                 )
+        if self.unique:
+            from django.db.models.constraints import UniqueConstraint
+            self.model._meta.constraints.append(
+                UniqueConstraint(fields=[self.name], name='_field_%s' % self.name, auto_created=True)
+            )
 
     def get_filter_kwargs_for_object(self, obj):
         """

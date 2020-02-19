@@ -7,8 +7,9 @@ __all__ = ['CheckConstraint', 'UniqueConstraint']
 
 
 class BaseConstraint:
-    def __init__(self, name):
+    def __init__(self, name, auto_created=False):
         self.name = name
+        self.auto_created = auto_created
 
     def constraint_sql(self, model, schema_editor):
         raise NotImplementedError('This method must be implemented by a subclass.')
@@ -75,14 +76,14 @@ class CheckConstraint(BaseConstraint):
 
 
 class UniqueConstraint(BaseConstraint):
-    def __init__(self, *, fields, name, condition=None):
+    def __init__(self, *, fields, name, condition=None, auto_created=False):
         if not fields:
             raise ValueError('At least one field is required to define a unique constraint.')
         if not isinstance(condition, (type(None), Q)):
             raise ValueError('UniqueConstraint.condition must be a Q instance.')
         self.fields = tuple(fields)
         self.condition = condition
-        super().__init__(name)
+        super().__init__(name, auto_created)
 
     def _get_condition_sql(self, model, schema_editor):
         if self.condition is None:

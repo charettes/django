@@ -1033,8 +1033,12 @@ class MigrationAutodetector:
 
             old_constraints = old_model_state.options[option_name]
             new_constraints = new_model_state.options[option_name]
-            add_constraints = [c for c in new_constraints if c not in old_constraints]
-            rem_constraints = [c for c in old_constraints if c not in new_constraints]
+            add_constraints = [
+                c for c in new_constraints if not c.auto_created and c not in old_constraints
+            ]
+            rem_constraints = [
+                c for c in old_constraints if not c.auto_created and c not in new_constraints
+            ]
 
             self.altered_constraints.update({
                 (app_label, model_name): {

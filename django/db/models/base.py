@@ -1,6 +1,7 @@
 import copy
 import inspect
 import warnings
+from collections import defaultdict
 from functools import partialmethod
 from itertools import chain
 
@@ -999,9 +1000,9 @@ class Model(metaclass=ModelBase):
         Check unique constraints on the model and raise ValidationError if any
         failed.
         """
-        unique_checks, date_checks = self._get_unique_checks(exclude=exclude)
+        _unique_checks, date_checks = self._get_unique_checks(exclude=exclude)
 
-        errors = self._perform_unique_checks(unique_checks)
+        errors = self._enforce_unique_constraints(exclude)
         date_errors = self._perform_date_checks(date_checks)
 
         for k, v in date_errors.items():
@@ -1009,6 +1010,23 @@ class Model(metaclass=ModelBase):
 
         if errors:
             raise ValidationError(errors)
+
+    def _enforce_unique_constraints(self, exclude=None):
+        exclude_fields = frozenset(exclude or [])
+        constraints = chain(self._meta.constraints, chain.from_iterable(
+            parent_class._meta.constraints
+            for parent_class in self._meta.get_parent_list()
+        ))
+        errors = defaultdict(list)
+        for constraint in constraints:
+            if not isinstance(constraint, UniqueConstraint):
+                continue
+            try:
+                constraint.enforce(self, exclude_fields)
+            except ValidationError as violation:
+                for field, messages in violation.error_dict.items():
+                    errors[field].extend(messages)
+        return errors
 
     def _get_unique_checks(self, exclude=None):
         """

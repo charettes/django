@@ -35,6 +35,8 @@ def check_all_models(app_configs=None, **kwargs):
         for model_index in model._meta.indexes:
             indexes[model_index.name].append(model._meta.label)
         for model_constraint in model._meta.constraints:
+            if model_constraint.auto_created:
+                continue
             constraints[model_constraint.name].append(model._meta.label)
     if settings.DATABASE_ROUTERS:
         error_class, error_id = Warning, 'models.W035'

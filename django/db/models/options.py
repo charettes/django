@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import connections
 from django.db.models import AutoField, Manager, OrderWrt
+from django.db.models.constraints import UniqueConstraint
 from django.db.models.query_utils import PathInfo
 from django.utils.datastructures import ImmutableList, OrderedSet
 from django.utils.functional import cached_property
@@ -176,7 +177,6 @@ class Options:
                     setattr(self, attr_name, getattr(self.meta, attr_name))
                     self.original_attrs[attr_name] = getattr(self, attr_name)
 
-            self.unique_together = normalize_together(self.unique_together)
             self.index_together = normalize_together(self.index_together)
             # App label/class name interpolation for names of constraints and
             # indexes.
@@ -184,6 +184,16 @@ class Options:
                 for attr_name in {'constraints', 'indexes'}:
                     objs = getattr(self, attr_name, [])
                     setattr(self, attr_name, self._format_names_with_class(cls, objs))
+
+            self.unique_together = normalize_together(self.unique_together)
+            for fields in self.unique_together:
+                self.constraints.append(
+                    UniqueConstraint(
+                        fields=fields,
+                        name='_unique_together_%s' % '_'.join(fields),
+                        auto_created=True,
+                    )
+                )
 
             # verbose_name_plural is a special case because it uses a 's'
             # by default.

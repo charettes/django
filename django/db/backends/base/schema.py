@@ -190,7 +190,10 @@ class BaseDatabaseSchemaEditor:
                 autoinc_sql = self.connection.ops.autoinc_sql(model._meta.db_table, field.column)
                 if autoinc_sql:
                     self.deferred_sql.extend(autoinc_sql)
-        constraints = [constraint.constraint_sql(model, self) for constraint in model._meta.constraints]
+        constraints = [
+            constraint.constraint_sql(model, self)
+            for constraint in model._meta.constraints if not constraint.auto_created
+        ]
         sql = self.sql_create_table % {
             'table': self.quote_name(model._meta.db_table),
             'definition': ', '.join(constraint for constraint in (*column_sqls, *constraints) if constraint),
