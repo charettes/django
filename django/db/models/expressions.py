@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.core.exceptions import EmptyResultSet, FieldError
 from django.db import NotSupportedError, connection
 from django.db.models import fields
+from django.db.models.constants import LOOKUP_SEP
 from django.db.models.query_utils import Q
 from django.utils.deconstruct import deconstructible
 from django.utils.functional import cached_property
@@ -553,6 +554,11 @@ class ResolvedOuterRef(F):
     """
     contains_aggregate = False
 
+    def resolve_expression(self, *args, **kwargs):
+        col = super().resolve_expression(*args, **kwargs)
+        col.multi_valued = LOOKUP_SEP in self.name
+        return col
+
     def as_sql(self, *args, **kwargs):
         raise ValueError(
             'This queryset contains a reference to an outer query and may '
@@ -743,6 +749,7 @@ class Random(Expression):
 
 class Col(Expression):
 
+    multi_valued = False
     contains_column_references = True
 
     def __init__(self, alias, target, output_field=None):
@@ -1039,7 +1046,10 @@ class Subquery(Expression):
     def get_group_by_cols(self, alias=None):
         if alias:
             return [Ref(alias, self)]
-        return self.query.get_external_cols()
+        external_cols = self.query.get_external_cols()
+        if any(col.multi_valued for col in external_cols):
+            return [self]
+        return external_cols
 
 
 class Exists(Subquery):

@@ -1141,6 +1141,16 @@ class AggregateTestCase(TestCase):
         # The GROUP BY should not be by alias either.
         self.assertEqual(ctx[0]['sql'].lower().count('latest_book_pubdate'), 1)
 
+    def test_aggregation_subquery_annotation_multivalued(self):
+        subquery_qs = Author.objects.filter(
+            pk=OuterRef('pk'),
+            book__name=OuterRef('book__name')
+        ).values('pk')
+        author_qs = Author.objects.annotate(
+            subquery_id=Subquery(subquery_qs),
+        ).annotate(count=Count('book'))
+        self.assertEqual(author_qs.count(), Author.objects.count())
+
     def test_aggregation_subquery_annotation_exists(self):
         latest_book_pubdate_qs = Book.objects.filter(
             publisher=OuterRef('pk')
