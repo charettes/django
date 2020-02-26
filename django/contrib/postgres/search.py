@@ -92,14 +92,19 @@ class SearchVector(SearchVectorCombinable, Func):
             resolved.config = self.config.resolve_expression(query, allow_joins, reuse, summarize, for_save)
         return resolved
 
+    def textual_expression(self, expression):
+        if isinstance(expression.output_field, (CharField, TextField)):
+            return expression
+        return Cast(expression, TextField())
+
     def as_sql(self, compiler, connection, function=None, template=None):
         clone = self.copy()
         clone.set_source_expressions([
-            Coalesce(
-                expression
-                if isinstance(expression.output_field, (CharField, TextField))
-                else Cast(expression, TextField()),
-                Value('')
+            (
+                # Coalesce nullable fields only.
+                Coalesce(self.textual_expression(expression), Value(''))
+                if expression.nullable
+                else self.textual_expression(expression)
             ) for expression in clone.get_source_expressions()
         ])
         config_sql = None
