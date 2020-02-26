@@ -69,10 +69,10 @@ class ConcatTests(TestCase):
 
     @skipUnless(connection.vendor == 'sqlite', "sqlite specific implementation detail.")
     def test_coalesce_idempotent(self):
-        pair = ConcatPair(V('a'), V('b'))
+        pair = ConcatPair(V('a'), V(None))
         # Check nodes counts
         self.assertEqual(len(list(pair.flatten())), 3)
-        self.assertEqual(len(list(pair.coalesce().flatten())), 7)  # + 2 Coalesce + 2 Value()
+        self.assertEqual(len(list(pair.coalesce().flatten())), 5)  # + 1 Coalesce + 1 Value()
         self.assertEqual(len(list(pair.flatten())), 3)
 
     def test_sql_generation_idempotency(self):

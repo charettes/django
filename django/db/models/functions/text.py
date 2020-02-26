@@ -87,7 +87,8 @@ class ConcatPair(Func):
         # null on either side results in null for expression, wrap with coalesce
         c = self.copy()
         c.set_source_expressions([
-            Coalesce(expression, Value('')) for expression in c.get_source_expressions()
+            Coalesce(expression, Value('')) if expression.nullable else expression
+            for expression in c.get_source_expressions()
         ])
         return c
 
