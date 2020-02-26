@@ -368,10 +368,10 @@ class Query(BaseExpression):
         clone.change_aliases(change_map)
         return clone
 
-    def _get_col(self, target, field, alias):
+    def _get_col(self, target, field, alias, nullable=None):
         if not self.alias_cols:
             alias = None
-        return target.get_col(alias, field)
+        return target.get_col(alias, field, nullable)
 
     def rewrite_cols(self, annotation, col_cnt):
         # We must make sure the inner query has the referred columns in it.
@@ -1366,11 +1366,11 @@ class Query(BaseExpression):
                     self.alias_map[join_list[-1]].join_type == LOUTER
                 ):
                     lookup_class = targets[0].get_lookup('isnull')
-                    col = self._get_col(targets[0], join_info.targets[0], alias)
+                    col = self._get_col(targets[0], join_info.targets[0], alias, False)
                     clause.add(lookup_class(col, False), AND)
                 # If someval is a nullable column, someval IS NOT NULL is
                 # added.
-                if isinstance(value, Col) and self.is_nullable(value.target):
+                if isinstance(value, Col) and value.nullable:
                     lookup_class = value.target.get_lookup('isnull')
                     clause.add(lookup_class(value, False), AND)
         return clause, used_joins if not require_outer else ()
@@ -1798,10 +1798,6 @@ class Query(BaseExpression):
         col = query.select[0]
         select_field = col.target
         alias = col.alias
-        if select_field.nullable:
-            lookup_class = select_field.get_lookup('isnull')
-            lookup = lookup_class(select_field.get_col(alias), False)
-            query.where.add(lookup, AND)
         if alias in can_reuse:
             pk = select_field.model._meta.pk
             # Need to add a restriction so that outer query's filters are in effect for

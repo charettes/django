@@ -20,6 +20,7 @@ class Aggregate(Func):
     filter_template = '%s FILTER (WHERE %%(filter)s)'
     window_compatible = True
     allow_distinct = False
+    nullable = True
 
     def __init__(self, *expressions, distinct=False, filter=None, **extra):
         if distinct and not self.allow_distinct:

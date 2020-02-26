@@ -228,6 +228,15 @@ class BaseExpression:
     def contains_column_references(self):
         return any(expr and expr.contains_column_references for expr in self.get_source_expressions())
 
+    @cached_property
+    def nullable(self):
+        exprs = self.get_source_expressions()
+        if not exprs:
+            # Assume expression nullability if no output field can be resolved.
+            output_field = self._output_field_or_none
+            return output_field is None or output_field.nullable
+        return any(expr and expr.nullable for expr in exprs)
+
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
         """
         Provide the chance to do any preprocessing or validation before being
@@ -725,6 +734,10 @@ class Value(Expression):
         super().__init__(output_field=output_field)
         self.value = value
 
+    @cached_property
+    def nullable(self):
+        return self.value is None
+
     def __repr__(self):
         return "{}({})".format(self.__class__.__name__, self.value)
 
@@ -819,11 +832,14 @@ class Col(Expression):
     contains_column_references = True
     possibly_multivalued = False
 
-    def __init__(self, alias, target, output_field=None):
+    def __init__(self, alias, target, output_field=None, nullable=None):
         if output_field is None:
             output_field = target
+        if nullable is None:
+            nullable = target.nullable
         super().__init__(output_field=output_field)
         self.alias, self.target = alias, target
+        self.nullable = nullable
 
     def __repr__(self):
         alias, target = self.alias, self.target
@@ -1092,6 +1108,7 @@ class Subquery(Expression):
     """
     template = '(%(subquery)s)'
     contains_aggregate = False
+    nullable = True
 
     def __init__(self, queryset, output_field=None, **extra):
         # Allow the usage of both QuerySet and sql.Query objects.
@@ -1150,6 +1167,7 @@ class Subquery(Expression):
 class Exists(Subquery):
     template = 'EXISTS(%(subquery)s)'
     output_field = fields.BooleanField()
+    nullable = False
 
     def __init__(self, queryset, negated=False, **kwargs):
         self.negated = negated

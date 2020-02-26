@@ -1014,14 +1014,14 @@ class ForeignKey(ForeignObject):
             converters += [self.convert_empty_strings]
         return converters
 
-    def get_col(self, alias, output_field=None):
+    def get_col(self, alias, output_field=None, nullable=None):
         if output_field is None:
             output_field = self.target_field
             while isinstance(output_field, ForeignKey):
                 output_field = output_field.target_field
                 if output_field is self:
                     raise ValueError('Cannot resolve output_field.')
-        return super().get_col(alias, output_field)
+        return super().get_col(alias, output_field, nullable)
 
 
 class OneToOneField(ForeignKey):

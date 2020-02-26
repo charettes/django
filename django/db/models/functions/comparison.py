@@ -2,6 +2,7 @@
 from django.db import NotSupportedError
 from django.db.models.expressions import Func, Value
 from django.db.models.fields.json import JSONField
+from django.utils.functional import cached_property
 from django.utils.regex_helper import _lazy_re_compile
 
 
@@ -58,6 +59,10 @@ class Coalesce(Func):
         if len(expressions) < 2:
             raise ValueError('Coalesce must take at least two expressions')
         super().__init__(*expressions, **extra)
+
+    @cached_property
+    def nullable(self):
+        return all(expr and expr.nullable for expr in self.get_source_expressions())
 
     def as_oracle(self, compiler, connection, **extra_context):
         # Oracle prohibits mixing TextField (NCLOB) and CharField (NVARCHAR2),

@@ -405,12 +405,12 @@ class Field(RegisterLookupMixin):
             self.empty_strings_allowed
         )
 
-    def get_col(self, alias, output_field=None):
+    def get_col(self, alias, output_field=None, nullable=None):
         if output_field is None:
             output_field = self
         if alias != self.model._meta.db_table or output_field != self:
             from django.db.models.expressions import Col
-            return Col(alias, self, output_field)
+            return Col(alias, self, output_field, nullable)
         else:
             return self.cached_col
 
