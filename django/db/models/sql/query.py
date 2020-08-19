@@ -1201,7 +1201,7 @@ class Query(BaseExpression):
         # For Oracle '' is equivalent to null. The check must be done at this
         # stage because join promotion can't be done in the compiler. Using
         # DEFAULT_DB_ALIAS isn't nice but it's the best that can be done here.
-        # A similar thing is done in is_nullable(), too.
+        # A similar thing is done in Field.nullable, too.
         if (connections[DEFAULT_DB_ALIAS].features.interprets_empty_strings_as_nulls and
                 lookup_name == 'exact' and lookup.rhs == ''):
             return lhs.get_lookup('isnull')(lhs, True)
@@ -1362,7 +1362,7 @@ class Query(BaseExpression):
                 #   <=>
                 # NOT (col IS NOT NULL AND col = someval).
                 if (
-                    self.is_nullable(targets[0]) or
+                    targets[0].nullable or
                     self.alias_map[join_list[-1]].join_type == LOUTER
                 ):
                     lookup_class = targets[0].get_lookup('isnull')
@@ -1661,7 +1661,7 @@ class Query(BaseExpression):
                 table_alias = None
             opts = join.to_opts
             if join.direct:
-                nullable = self.is_nullable(join.join_field)
+                nullable = join.join_field.nullable
             else:
                 nullable = True
             connection = Join(
@@ -1798,6 +1798,10 @@ class Query(BaseExpression):
         col = query.select[0]
         select_field = col.target
         alias = col.alias
+        if select_field.nullable:
+            lookup_class = select_field.get_lookup('isnull')
+            lookup = lookup_class(select_field.get_col(alias), False)
+            query.where.add(lookup, AND)
         if alias in can_reuse:
             pk = select_field.model._meta.pk
             # Need to add a restriction so that outer query's filters are in effect for
@@ -2330,24 +2334,6 @@ class Query(BaseExpression):
                 break
         self.set_select([f.get_col(select_alias) for f in select_fields])
         return trimmed_prefix, contains_louter
-
-    def is_nullable(self, field):
-        """
-        Check if the given field should be treated as nullable.
-
-        Some backends treat '' as null and Django treats such fields as
-        nullable for those backends. In such situations field.null can be
-        False even if we should treat the field as nullable.
-        """
-        # We need to use DEFAULT_DB_ALIAS here, as QuerySet does not have
-        # (nor should it have) knowledge of which connection is going to be
-        # used. The proper fix would be to defer all decisions where
-        # is_nullable() is needed to the compiler stage, but that is not easy
-        # to do currently.
-        return (
-            connections[DEFAULT_DB_ALIAS].features.interprets_empty_strings_as_nulls and
-            field.empty_strings_allowed
-        ) or field.null
 
 
 def get_order_dir(field, default='ASC'):

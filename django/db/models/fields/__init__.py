@@ -391,6 +391,20 @@ class Field(RegisterLookupMixin):
             ]
         return []
 
+    @cached_property
+    def nullable(self):
+        """
+        Check if the given field should be treated as nullable.
+
+        Some backends treat '' as null and Django treats such fields as
+        nullable for those backends. In such situations field.null can be
+        False even if we should treat the field as nullable.
+        """
+        return self.null or (
+            connection.features.interprets_empty_strings_as_nulls and
+            self.empty_strings_allowed
+        )
+
     def get_col(self, alias, output_field=None):
         if output_field is None:
             output_field = self
