@@ -832,12 +832,12 @@ class MigrationAutodetector:
             old_model_name = self.renamed_models.get((app_label, model_name), model_name)
             old_model_state = self.from_state.models[app_label, old_model_name]
             new_model_state = self.to_state.models[app_label, old_model_name]
-            field = new_model_state.fields[field_name]
+            field = new_model_state.get_field(field_name)
             # Scan to see if this is actually a rename!
             field_dec = self.deep_deconstruct(field)
             for rem_app_label, rem_model_name, rem_field_name in sorted(self.old_field_keys - self.new_field_keys):
                 if rem_app_label == app_label and rem_model_name == model_name:
-                    old_field = old_model_state.fields[rem_field_name]
+                    old_field = old_model_state.get_field(rem_field_name)
                     old_field_dec = self.deep_deconstruct(old_field)
                     if field.remote_field and field.remote_field.model and 'to' in old_field_dec[2]:
                         old_rel_to = old_field_dec[2]['to']
@@ -870,7 +870,7 @@ class MigrationAutodetector:
             self._generate_added_field(app_label, model_name, field_name)
 
     def _generate_added_field(self, app_label, model_name, field_name):
-        field = self.to_state.models[app_label, model_name].fields[field_name]
+        field = self.to_state.models[app_label, model_name].get_field(field_name)
         # Fields that are foreignkeys/m2ms depend on stuff
         dependencies = []
         if field.remote_field and field.remote_field.model:
@@ -930,8 +930,8 @@ class MigrationAutodetector:
             # Did the field change?
             old_model_name = self.renamed_models.get((app_label, model_name), model_name)
             old_field_name = self.renamed_fields.get((app_label, model_name, field_name), field_name)
-            old_field = self.from_state.models[app_label, old_model_name].fields[old_field_name]
-            new_field = self.to_state.models[app_label, model_name].fields[field_name]
+            old_field = self.from_state.models[app_label, old_model_name].get_field(old_field_name)
+            new_field = self.to_state.models[app_label, model_name].get_field(field_name)
             dependencies = []
             # Implement any model renames on relations; these are handled by RenameModel
             # so we need to exclude them from the comparison
@@ -1119,7 +1119,7 @@ class MigrationAutodetector:
                 dependencies = []
                 for foo_togethers in new_value:
                     for field_name in foo_togethers:
-                        field = new_model_state.fields[field_name]
+                        field = new_model_state.get_field(field_name)
                         if field.remote_field and field.remote_field.model:
                             dependencies.extend(
                                 self._get_dependencies_for_foreign_key(app_label, model_name, field, self.to_state)

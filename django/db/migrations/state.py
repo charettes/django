@@ -456,6 +456,14 @@ class ModelState:
     def name_lower(self):
         return self.name.lower()
 
+    def get_field(self, field_name):
+        field_name = (
+            self.options['order_with_respect_to']
+            if field_name == '_order'
+            else field_name
+        )
+        return self.fields[field_name]
+
     @classmethod
     def from_model(cls, model, exclude_rels=False):
         """Given a model, return a ModelState representing it."""
