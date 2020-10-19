@@ -1650,12 +1650,10 @@ class AutodetectorTests(TestCase):
         # First, we test the default pk field name
         changes = self.get_changes([], [self.author_empty, self.author_proxy_third, self.book_proxy_fk])
         # The models the FK is pointing from and to
-        self.assertEqual(changes['otherapp'][0].operations[0].fields[2][1].remote_field.related_model, 'otherapp.Book')
         self.assertEqual(changes['otherapp'][0].operations[0].fields[2][1].remote_field.model, 'thirdapp.AuthorProxy')
         # Now, we test the custom pk field name
         changes = self.get_changes([], [self.author_custom_pk, self.author_proxy_third, self.book_proxy_fk])
         # The models the FK is pointing from and to
-        self.assertEqual(changes['otherapp'][0].operations[0].fields[2][1].remote_field.related_model, 'otherapp.Book')
         self.assertEqual(changes['otherapp'][0].operations[0].fields[2][1].remote_field.model, 'thirdapp.AuthorProxy')
 
     def test_proxy_to_mti_with_fk_to_proxy(self):
@@ -1671,7 +1669,6 @@ class AutodetectorTests(TestCase):
             to_state.get_concrete_model_key(fk_field.remote_field.model),
             ('testapp', 'author'),
         )
-        self.assertEqual(fk_field.remote_field.related_model, 'otherapp.Book')
         self.assertEqual(fk_field.remote_field.model, 'thirdapp.AuthorProxy')
 
         # Change AuthorProxy to use MTI.
@@ -1695,7 +1692,6 @@ class AutodetectorTests(TestCase):
             to_state.get_concrete_model_key(fk_field.remote_field.model),
             ('thirdapp', 'authorproxy'),
         )
-        self.assertEqual(fk_field.remote_field.related_model, 'otherapp.Book')
         self.assertEqual(fk_field.remote_field.model, 'thirdapp.AuthorProxy')
 
     def test_proxy_to_mti_with_fk_to_proxy_proxy(self):
@@ -1712,7 +1708,6 @@ class AutodetectorTests(TestCase):
             to_state.get_concrete_model_key(fk_field.remote_field.model),
             ('testapp', 'author'),
         )
-        self.assertEqual(fk_field.remote_field.related_model, 'otherapp.Book')
         self.assertEqual(fk_field.remote_field.model, 'testapp.AAuthorProxyProxy')
 
         # Change AuthorProxy to use MTI. FK still points to AAuthorProxyProxy,
@@ -1739,7 +1734,6 @@ class AutodetectorTests(TestCase):
             to_state.get_concrete_model_key(fk_field.remote_field.model),
             ('testapp', 'authorproxy'),
         )
-        self.assertEqual(fk_field.remote_field.related_model, 'otherapp.Book')
         self.assertEqual(fk_field.remote_field.model, 'testapp.AAuthorProxyProxy')
 
     def test_unmanaged_create(self):
@@ -1782,17 +1776,19 @@ class AutodetectorTests(TestCase):
         unmanaged models.
         """
         # First, we test the default pk field name
-        changes = self.get_changes([], [self.author_unmanaged_default_pk, self.book])
+        to_state = self.make_project_state(
+            [self.author_unmanaged_default_pk, self.book]
+        )
+        changes = self.get_changes([], to_state)
         # The field name the FK on the book model points to
-        fk_field = changes['otherapp'][0].operations[0].fields[2][1].remote_field
-        self.assertEqual(fk_field.remote_field.model, 'otherapp.Book')
-        self.assertEqual(fk_field.remote_field.related_model, 'testapp.Author')
+        fk_field = changes['otherapp'][0].operations[0].fields[2][1]
+        self.assertEqual(fk_field.remote_field.model, 'testapp.Author')
+
         # Now, we test the custom pk field name
         changes = self.get_changes([], [self.author_unmanaged_custom_pk, self.book])
         # The field name the FK on the book model points to
-        fk_field = changes['otherapp'][0].operations[0].fields[2][1].remote_field
-        self.assertEqual(fk_field.remote_field.model, 'otherapp.Book')
-        self.assertEqual(fk_field.remote_field.related_model, 'testapp.Author')
+        fk_field = changes['otherapp'][0].operations[0].fields[2][1]
+        self.assertEqual(fk_field.remote_field.model, 'testapp.Author')
 
     @override_settings(AUTH_USER_MODEL="thirdapp.CustomUser")
     def test_swappable(self):

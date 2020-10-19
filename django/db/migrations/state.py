@@ -196,7 +196,6 @@ class ProjectState:
         for model_state in self.models.values():
             for field_name, field in model_state.fields.items():
                 field.name = field_name
-                field.model = "{}.{}".format(model_state.app_label, model_state.name)
 
         self.relations = defaultdict(lambda: defaultdict(list))
         concretes, proxies = self._get_concrete_models_mapping_and_proxy_models()
@@ -429,7 +428,7 @@ class ModelState:
         self.managers = managers or []
         for name, field in self.fields.items():
             # Sanity-check that fields are NOT already bound to a model.
-            if hasattr(field, 'model') and not isinstance(field.model, str):
+            if hasattr(field, 'model'):
                 raise ValueError(
                     'ModelState.fields cannot be bound to a model - "%s" is.' % name
                 )

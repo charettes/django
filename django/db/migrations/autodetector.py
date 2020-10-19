@@ -1083,15 +1083,24 @@ class MigrationAutodetector:
     @staticmethod
     def _get_dependencies_for_foreign_key(app_label, model_name, field, project_state):
         # Account for FKs to swappable models
+        remote_field_model = None
+        if hasattr(field.remote_field, 'model'):
+            remote_field_model = field.remote_field.model
+        else:
+            for model, fields in project_state.relations[app_label, model_name].items():
+                if any(field == related_field.remote_field for _, related_field in fields):
+                    remote_field_model = f"{model[0]}.{model[1]}"
+                    break
+
         swappable_setting = getattr(field, 'swappable_setting', None)
         if swappable_setting is not None:
             dep_app_label = "__setting__"
             dep_object_name = swappable_setting
         else:
-            dep_app_label, dep_object_name = resolve_relation(field.remote_field.model, app_label, model_name)
+            dep_app_label, dep_object_name = resolve_relation(remote_field_model, app_label, model_name)
         dependencies = [(dep_app_label, dep_object_name, None, True)]
         if getattr(field.remote_field, "through", None):
-            through_app_label, through_object_name = resolve_relation(field.remote_field.model, app_label, model_name)
+            through_app_label, through_object_name = resolve_relation(remote_field_model, app_label, model_name)
             dependencies.append((through_app_label, through_object_name, None, True))
         return dependencies
 
