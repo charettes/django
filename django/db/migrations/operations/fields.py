@@ -33,10 +33,7 @@ class FieldOperation(Operation):
         # Check if this operation remotely references the model.
         field = self.field
         if field is None and state:
-            try:
-                field = state.models[app_label, self.model_name_lower].fields[self.name]
-            except LookupError:
-                pass
+            field = state.models[app_label, self.model_name_lower].fields[self.name]
         # If no field definition can be retrieve assume that it could refer to
         # any fields.
         if field is None:
@@ -59,10 +56,7 @@ class FieldOperation(Operation):
         # Check if this operation remotely references the field.
         field = self.field
         if field is None and state:
-            try:
-                field = state.models[app_label, self.model_name_lower].fields[self.name]
-            except LookupError:
-                pass
+            field = state.models[app_label, self.model_name_lower].fields[self.name]
         # If no field definition can be retrieve assume that it could refer to
         # any fields.
         if field is None:
@@ -72,11 +66,7 @@ class FieldOperation(Operation):
             return False
         reference_field = None
         if state is not None:
-            try:
-                reference_field = state.models[app_label, model_name_lower].fields[name]
-            except LookupError:
-                pass
-
+            reference_field = state.models[app_label, model_name_lower].fields[name]
         return bool(field_references(
             (app_label, self.model_name_lower),
             field,

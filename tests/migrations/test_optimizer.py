@@ -45,7 +45,7 @@ class OptimizerTests(SimpleTestCase):
     def test_none_app_label(self):
         optimizer = MigrationOptimizer()
         with self.assertRaisesMessage(TypeError, 'app_label must be a str'):
-            optimizer.optimize([], None)
+            optimizer.optimize([], None, ProjectState())
 
     def test_single(self):
         """
@@ -236,6 +236,7 @@ class OptimizerTests(SimpleTestCase):
         )
         # But it shouldn't work if a FK references a model with the same
         # app_label.
+        self.maxDiff = None
         self.assertDoesNotOptimize(
             [
                 migrations.CreateModel('Foo', [('name', models.CharField(max_length=255))]),
@@ -538,6 +539,11 @@ class OptimizerTests(SimpleTestCase):
                 migrations.RenameField("Foo", "name", "nom"),
                 migrations.AlterField("Foo", "nom", models.CharField(max_length=255)),
             ],
+            state=ProjectState(models={
+                ("migrations", "foo"): ModelState("migrations", "Foo", fields=[
+                    ("name", models.CharField(max_length=100)),
+                ]),
+            })
         )
 
     def test_create_model_remove_field(self):

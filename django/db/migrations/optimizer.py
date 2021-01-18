@@ -31,8 +31,6 @@ class MigrationOptimizer:
             raise TypeError('app_label must be a str.')
         self._iterations = 0
         while True:
-            import pprint
-            pprint.pprint(operations)
             result = self.optimize_inner(operations, app_label, state.clone())
             self._iterations += 1
             if result == operations:
@@ -44,15 +42,17 @@ class MigrationOptimizer:
         new_operations = []
         for i, operation in enumerate(operations):
             right = True  # Should we reduce on the right or on the left.
+            operation_state = state.clone()
+            operation.state_forwards(app_label, operation_state)
             # Compare it to each operation after it
             for j, other in enumerate(operations[i + 1:]):
-                result = operation.reduce(other, app_label, state)
+                result = operation.reduce(other, app_label, operation_state)
                 if isinstance(result, list):
                     in_between = operations[i + 1:i + j + 1]
                     if right:
                         new_operations.extend(in_between)
                         new_operations.extend(result)
-                    elif all(op.reduce(other, app_label, state) is True for op in in_between):
+                    elif all(op.reduce(other, app_label, operation_state) is True for op in in_between):
                         # Perform a left reduction if all of the in-between
                         # operations can optimize through other.
                         new_operations.extend(result)
@@ -60,7 +60,6 @@ class MigrationOptimizer:
                     else:
                         # Otherwise keep trying.
                         new_operations.append(operation)
-                        print('forwards', operation)
                         operation.state_forwards(app_label, state)
                         break
                     new_operations.extend(operations[i + j + 2:])
@@ -68,8 +67,8 @@ class MigrationOptimizer:
                 elif not result:
                     # Can't perform a right reduction.
                     right = False
+                other.state_forwards(app_label, operation_state)
             else:
                 new_operations.append(operation)
-                print('forwards', operation)
                 operation.state_forwards(app_label, state)
         return new_operations
