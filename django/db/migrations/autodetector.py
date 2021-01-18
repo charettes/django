@@ -223,12 +223,28 @@ class MigrationAutodetector:
     def _generate_through_model_map(self):
         """Through model map generation."""
         for app_label, model_name in sorted(self.old_model_keys):
-            old_model_name = self.renamed_models.get((app_label, model_name), model_name)
+            model_key = (app_label, model_name)
+            old_model_name = self.renamed_models.get(model_key, model_name)
             old_model_state = self.from_state.models[app_label, old_model_name]
             for field_name, field in old_model_state.fields.items():
                 if hasattr(field, 'remote_field') and getattr(field.remote_field, 'through', None):
-                    through_key = resolve_relation(field.remote_field.through, app_label, model_name)
-                    self.through_users[through_key] = (app_label, old_model_name, field_name)
+                    through_key = resolve_relation(field.remote_field.through, *model_key)
+                    through_fields = field.remote_field.through_fields
+                    if through_fields is None:
+                        # If through_fields are not specified then they are
+                        # implicitly defined by the single foreign key from
+                        # and to the relationship.
+                        remote_model_key = resolve_relation(field.remote_field.model, *model_key)
+                        through_fields = [None] * 2
+                        for through_name, through_field in self.from_state.models[through_key].fields.items():
+                            if not isinstance(through_field, models.ForeignKey):
+                                continue
+                            through_field_to = resolve_relation(through_field.remote_field.model, *through_key)
+                            if through_field_to == model_key:
+                                through_fields[0] = through_name
+                            if through_field_to == remote_model_key:
+                                through_fields[1] = through_name
+                    self.through_users[through_key] = (app_label, old_model_name, field_name, through_fields)
 
     @staticmethod
     def _resolve_dependency(dependency):
@@ -361,9 +377,15 @@ class MigrationAutodetector:
                 migration.dependencies = list(set(migration.dependencies))
 
         # Optimize migrations
+        project_state = self.from_state.clone()
+        # XXX: These should be iterated over in the right dependency order.
         for app_label, migrations in self.migrations.items():
             for migration in migrations:
-                migration.operations = MigrationOptimizer().optimize(migration.operations, app_label)
+                migration.operations = MigrationOptimizer().optimize(
+                    migration.operations, app_label, project_state
+                )
+                for operation in migration.operations:
+                    operation.state_forwards(app_label, project_state)
 
     def check_dependency(self, operation, dependency):
         """
@@ -775,13 +797,22 @@ class MigrationAutodetector:
                     )
                 )
             # Then remove each related field
-            for name in sorted(related_fields):
+            through_user = self.through_users.get((app_label, model_state.name_lower))
+            for name, field in sorted(related_fields.items()):
+                dependencies = []
+                # If the field is involved in a through relationship its
+                # removal depends on the removal of the refering many-to-many.
+                if through_user and name in through_user[3]:
+                    dependencies.append(
+                        (through_user[0], through_user[1], through_user[2], False)
+                    )
                 self.add_operation(
                     app_label,
                     operations.RemoveField(
                         model_name=model_name,
                         name=name,
-                    )
+                    ),
+                    dependencies,
                 )
             # Finally, remove the model.
             # This depends on both the removal/alteration of all incoming fields
@@ -800,7 +831,6 @@ class MigrationAutodetector:
             for name in sorted(related_fields):
                 dependencies.append((app_label, model_name, name, False))
             # We're referenced in another field's through=
-            through_user = self.through_users.get((app_label, model_state.name_lower))
             if through_user:
                 dependencies.append((through_user[0], through_user[1], through_user[2], False))
             # Finally, make the operation, deduping any dependencies

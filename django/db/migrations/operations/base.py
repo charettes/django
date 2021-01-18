@@ -87,7 +87,7 @@ class Operation:
         """
         return None
 
-    def references_model(self, name, app_label):
+    def references_model(self, name, app_label, state=None):
         """
         Return True if there is a chance this operation references the given
         model name (as a string), with an app label for accuracy.
@@ -99,7 +99,7 @@ class Operation:
         """
         return True
 
-    def references_field(self, model_name, name, app_label):
+    def references_field(self, model_name, name, app_label, state=None):
         """
         Return True if there is a chance this operation references the given
         field name, with an app label for accuracy.
@@ -120,7 +120,7 @@ class Operation:
 
         return router.allow_migrate_model(connection_alias, model)
 
-    def reduce(self, operation, app_label):
+    def reduce(self, operation, app_label, state=None):
         """
         Return either a list of operations the actual operation should be
         replaced with or a boolean that indicates whether or not the specified

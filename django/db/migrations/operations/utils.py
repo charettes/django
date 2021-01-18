@@ -43,8 +43,13 @@ def field_references(
         through_fields = remote_field.through_fields
         if (
             reference_field_name is None or
-            # Unspecified through_fields.
-            through_fields is None or
+            # Unspecified through_fields, can only have one reference back.
+            (through_fields is None and (
+                reference_field is None or (
+                    reference_field.remote_field and resolve_relation(
+                        reference_field.remote_field.model, *reference_model_tuple
+                    ) == model_tuple
+            ))) or
             # Reference to field.
             reference_field_name in through_fields
         ):

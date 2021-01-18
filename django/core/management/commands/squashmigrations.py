@@ -5,6 +5,7 @@ from django.db import DEFAULT_DB_ALIAS, connections, migrations
 from django.db.migrations.loader import AmbiguityError, MigrationLoader
 from django.db.migrations.migration import SwappableTuple
 from django.db.migrations.optimizer import MigrationOptimizer
+from django.db.migrations.state import ProjectState
 from django.db.migrations.writer import MigrationWriter
 from django.utils.version import get_docs_version
 
@@ -74,12 +75,12 @@ class Command(BaseCommand):
             if al == migration.app_label
         ]
 
+        state = ProjectState()
         if start_migration_name:
             start_migration = self.find_migration(loader, app_label, start_migration_name)
             start = loader.get_migration(start_migration.app_label, start_migration.name)
             try:
                 start_index = migrations_to_squash.index(start)
-                migrations_to_squash = migrations_to_squash[start_index:]
             except ValueError:
                 raise CommandError(
                     "The migration '%s' cannot be found. Maybe it comes after "
@@ -88,6 +89,12 @@ class Command(BaseCommand):
                     "  python manage.py showmigrations %s\n"
                     "to debug this issue." % (start_migration, migration, app_label)
                 )
+            if start_index:
+                before_start = migrations_to_squash[start_index - 1]
+                for al, mn in loader.graph.forwards_plan((app_label, before_start.name)):
+                    for op in loader.get_migration(al, mn).operations:
+                        op.state_forwards(al, state)
+            migrations_to_squash = migrations_to_squash[start_index:]
 
         # Tell them what we're doing and optionally ask if we should proceed
         if self.verbosity > 0 or self.interactive:
@@ -142,7 +149,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.MIGRATE_HEADING("Optimizing..."))
 
             optimizer = MigrationOptimizer()
-            new_operations = optimizer.optimize(operations, migration.app_label)
+            new_operations = optimizer.optimize(operations, migration.app_label, state)
 
             if self.verbosity > 0:
                 if len(new_operations) == len(operations):

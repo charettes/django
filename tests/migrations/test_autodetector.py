@@ -2048,12 +2048,11 @@ class AutodetectorTests(TestCase):
         # Right number/type of migrations?
         self.assertNumberMigrations(changes, "testapp", 1)
         self.assertOperationTypes(changes, "testapp", 0, [
-            "RemoveField", "RemoveField", "DeleteModel", "DeleteModel"
+            "RemoveField", "DeleteModel", "DeleteModel"
         ])
-        self.assertOperationAttributes(changes, "testapp", 0, 0, name="author", model_name='contract')
-        self.assertOperationAttributes(changes, "testapp", 0, 1, name="publisher", model_name='contract')
+        self.assertOperationAttributes(changes, "testapp", 0, 0, name="publishers", model_name='author')
+        self.assertOperationAttributes(changes, "testapp", 0, 1, name="Contract")
         self.assertOperationAttributes(changes, "testapp", 0, 2, name="Author")
-        self.assertOperationAttributes(changes, "testapp", 0, 3, name="Contract")
 
     def test_concrete_field_changed_to_many_to_many(self):
         """
