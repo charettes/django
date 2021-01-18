@@ -26,7 +26,8 @@ def field_references(
         return False
     references_to = None
     references_through = None
-    if resolve_relation(remote_field.model, *model_tuple) == reference_model_tuple:
+    remote_model_tuple = resolve_relation(remote_field.model, *model_tuple)
+    if remote_model_tuple == reference_model_tuple:
         to_fields = getattr(field, 'to_fields', None)
         if (
             reference_field_name is None or
@@ -39,19 +40,23 @@ def field_references(
         ):
             references_to = (remote_field, to_fields)
     through = getattr(remote_field, 'through', None)
-    if through and resolve_relation(through, *model_tuple) == reference_model_tuple:
+    through_model_tuple = resolve_relation(through, *model_tuple) if through else None
+    if through_model_tuple == reference_model_tuple:
         through_fields = remote_field.through_fields
         if (
+            # XXX: These need to be adjusted.
             reference_field_name is None or
-            # Unspecified through_fields, can only have one reference back.
+            (through_fields is None and reference_field is None) or
+            # Unspecified through_fields, can only have one reference back to
+            # 
             (through_fields is None and (
                 reference_field is None or (
                     reference_field.remote_field and resolve_relation(
-                        reference_field.remote_field.model, *reference_model_tuple
-                    ) == model_tuple
+                        reference_field.remote_field.model, *through_model_tuple
+                    ) in (model_tuple, remote_model_tuple)
             ))) or
             # Reference to field.
-            reference_field_name in through_fields
+            through_fields is not None and reference_field_name in through_fields
         ):
             references_through = (remote_field, through_fields)
     if not (references_to or references_through):

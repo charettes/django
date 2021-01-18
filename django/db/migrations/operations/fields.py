@@ -79,6 +79,10 @@ class FieldOperation(Operation):
         ))
 
     def reduce(self, operation, app_label, state):
+        # XXX: Not sold on this approach.
+        if (isinstance(operation, RemoveField) and
+                self.references_field(operation.model_name, operation.name, app_label, state)):
+            return False
         return (
             super().reduce(operation, app_label, state) or
             not operation.references_field(self.model_name, self.name, app_label, state)
