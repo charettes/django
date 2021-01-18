@@ -26,13 +26,13 @@ class FieldOperation(Operation):
     def is_same_field_operation(self, operation):
         return self.is_same_model_operation(operation) and self.name_lower == operation.name_lower
 
-    def references_model(self, name, app_label, state=None):
+    def references_model(self, name, app_label, state):
         name_lower = name.lower()
         if name_lower == self.model_name_lower:
             return True
         # Check if this operation remotely references the model.
         field = self.field
-        if field is None and state:
+        if field is None:
             field = state.models[app_label, self.model_name_lower].fields[self.name]
         # If no field definition can be retrieve assume that it could refer to
         # any fields.
@@ -45,7 +45,7 @@ class FieldOperation(Operation):
             (app_label, self.model_name_lower), field, (app_label, name_lower)
         ))
 
-    def references_field(self, model_name, name, app_label, state=None):
+    def references_field(self, model_name, name, app_label, state):
         model_name_lower = model_name.lower()
         # Check if this operation locally references the field.
         if model_name_lower == self.model_name_lower:
@@ -55,7 +55,7 @@ class FieldOperation(Operation):
                 return True
         # Check if this operation remotely references the field.
         field = self.field
-        if field is None and state:
+        if field is None:
             field = state.models[app_label, self.model_name_lower].fields[self.name]
         # If no field definition can be retrieve assume that it could refer to
         # any fields.
@@ -65,8 +65,11 @@ class FieldOperation(Operation):
         if not field.remote_field:
             return False
         reference_field = None
-        if state is not None:
+        try:
             reference_field = state.models[app_label, model_name_lower].fields[name]
+        except LookupError:
+            # If the reference field is missing then it cannot be referenced.
+            return False
         return bool(field_references(
             (app_label, self.model_name_lower),
             field,
@@ -75,7 +78,7 @@ class FieldOperation(Operation):
             reference_field,
         ))
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         return (
             super().reduce(operation, app_label, state) or
             not operation.references_field(self.model_name, self.name, app_label, state)
@@ -141,7 +144,7 @@ class AddField(FieldOperation):
     def migration_name_fragment(self):
         return '%s_%s' % (self.model_name_lower, self.name_lower)
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if isinstance(operation, FieldOperation) and self.is_same_field_operation(operation):
             if isinstance(operation, AlterField):
                 return [
@@ -203,7 +206,7 @@ class RemoveField(FieldOperation):
     def migration_name_fragment(self):
         return 'remove_%s_%s' % (self.model_name_lower, self.name_lower)
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         from .models import DeleteModel
         if isinstance(operation, DeleteModel) and operation.name_lower == self.model_name_lower:
             return [operation]
@@ -276,7 +279,7 @@ class AlterField(FieldOperation):
     def migration_name_fragment(self):
         return 'alter_%s_%s' % (self.model_name_lower, self.name_lower)
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if isinstance(operation, RemoveField) and self.is_same_field_operation(operation):
             return [operation]
         elif isinstance(operation, RenameField) and self.is_same_field_operation(operation):
@@ -395,13 +398,13 @@ class RenameField(FieldOperation):
             self.new_name_lower,
         )
 
-    def references_field(self, model_name, name, app_label, state=None):
-        return self.references_model(model_name, app_label) and (
+    def references_field(self, model_name, name, app_label, state):
+        return self.references_model(model_name, app_label, state) and (
             name.lower() == self.old_name_lower or
             name.lower() == self.new_name_lower
         )
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if (isinstance(operation, RenameField) and
                 self.is_same_model_operation(operation) and
                 self.new_name_lower == operation.old_name_lower):

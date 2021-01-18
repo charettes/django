@@ -45,10 +45,10 @@ class ModelOperation(Operation):
                 return True
         return False
 
-    def references_model(self, name, app_label, state=None):
+    def references_model(self, name, app_label, state):
         return name.lower() == self.name_lower
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         return (
             super().reduce(operation, app_label, state) or
             not operation.references_model(self.name, app_label, state)
@@ -120,7 +120,7 @@ class CreateModel(ModelOperation):
     def migration_name_fragment(self):
         return self.name_lower
 
-    def references_model(self, name, app_label, state=None):
+    def references_model(self, name, app_label, state):
         name_lower = name.lower()
         if name_lower == self.name_lower:
             return True
@@ -135,7 +135,7 @@ class CreateModel(ModelOperation):
 
         return False
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if (isinstance(operation, DeleteModel) and
                 self.name_lower == operation.name_lower and
                 not self.options.get("proxy", False)):
@@ -283,21 +283,15 @@ class DeleteModel(ModelOperation):
         if self.allow_migrate_model(schema_editor.connection.alias, model):
             schema_editor.create_model(model)
 
-    def references_model(self, name, app_label, state=None):
-        if state is None:
-            # The deleted model could be referencing the specified model through
-            # related fields.
-            return True
-
+    def references_model(self, name, app_label, state):
         if super().references_model(name, app_label, state):
             return True
 
         try:
             model_state = state.models[app_label, self.name_lower]
         except LookupError:
-            # The deleted model could be referencing the specified model through
-            # related fields.
-            return True
+            # If the reference model is missing then it cannot be referenced.
+            return False
 
         if self._bases_references_model(model_state.bases, name, app_label):
             return True
@@ -429,7 +423,7 @@ class RenameModel(ModelOperation):
         self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
         self.new_name, self.old_name = self.old_name, self.new_name
 
-    def references_model(self, name, app_label, state=None):
+    def references_model(self, name, app_label, state):
         return (
             name.lower() == self.old_name_lower or
             name.lower() == self.new_name_lower
@@ -442,7 +436,7 @@ class RenameModel(ModelOperation):
     def migration_name_fragment(self):
         return 'rename_%s_%s' % (self.old_name_lower, self.new_name_lower)
 
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if (isinstance(operation, RenameModel) and
                 self.new_name_lower == operation.old_name_lower):
             return [
@@ -460,7 +454,7 @@ class RenameModel(ModelOperation):
 
 
 class ModelOptionOperation(ModelOperation):
-    def reduce(self, operation, app_label, state=None):
+    def reduce(self, operation, app_label, state):
         if isinstance(operation, (self.__class__, DeleteModel)) and self.name_lower == operation.name_lower:
             return [operation]
         return super().reduce(operation, app_label, state)
@@ -563,9 +557,9 @@ class AlterTogetherOptionOperation(ModelOptionOperation):
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
         return self.database_forwards(app_label, schema_editor, from_state, to_state)
 
-    def references_field(self, model_name, name, app_label, state=None):
+    def references_field(self, model_name, name, app_label, state):
         return (
-            self.references_model(model_name, app_label) and
+            self.references_model(model_name, app_label, state) and
             (
                 not self.option_value or
                 any((name in fields) for fields in self.option_value)
@@ -648,9 +642,9 @@ class AlterOrderWithRespectTo(ModelOptionOperation):
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
         self.database_forwards(app_label, schema_editor, from_state, to_state)
 
-    def references_field(self, model_name, name, app_label, state=None):
+    def references_field(self, model_name, name, app_label, state):
         return (
-            self.references_model(model_name, app_label) and
+            self.references_model(model_name, app_label, state) and
             (
                 self.order_with_respect_to is None or
                 name == self.order_with_respect_to

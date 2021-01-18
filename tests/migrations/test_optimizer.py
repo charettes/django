@@ -56,6 +56,7 @@ class OptimizerTests(SimpleTestCase):
             [migrations.DeleteModel("Foo")],
             [migrations.DeleteModel("Foo")],
             exact=1,
+            state=ProjectState(models={("migrations", "foo"): ModelState("migrations", "Foo", {})})
         )
 
     def test_create_delete_model(self):
@@ -160,6 +161,7 @@ class OptimizerTests(SimpleTestCase):
             [
                 alter_bar,
             ],
+            state=ProjectState(models={("migrations", "foo"): ModelState("migrations", "Foo", {})}),
         )
 
     def test_alter_alter_table_model(self):
@@ -236,7 +238,6 @@ class OptimizerTests(SimpleTestCase):
         )
         # But it shouldn't work if a FK references a model with the same
         # app_label.
-        self.maxDiff = None
         self.assertDoesNotOptimize(
             [
                 migrations.CreateModel('Foo', [('name', models.CharField(max_length=255))]),
@@ -397,6 +398,7 @@ class OptimizerTests(SimpleTestCase):
                 migrations.CreateModel('Link', [('url', models.TextField())]),
                 migrations.AddField('Other', 'link', models.ForeignKey('migrations.Link', models.CASCADE)),
             ],
+            state=ProjectState(models={("migrations", "other"): ModelState("migrations", "Other", {})}),
         )
 
     def test_create_model_no_reordering_of_inherited_model(self):
@@ -522,6 +524,7 @@ class OptimizerTests(SimpleTestCase):
             [
                 migrations.AddField("Foo", "title", models.CharField(max_length=255)),
             ],
+            state=ProjectState(models={("migrations", "foo"): ModelState("migrations", "Foo", {})}),
         )
 
     def test_alter_field_rename_field(self):
@@ -590,6 +593,7 @@ class OptimizerTests(SimpleTestCase):
             [
                 migrations.AddField("Foo", name="age", field=models.FloatField(default=2.4)),
             ],
+            state=ProjectState(models={("migrations", "foo"): ModelState("migrations", "Foo", {})}),
         )
 
     def test_add_field_delete_field(self):
@@ -602,6 +606,7 @@ class OptimizerTests(SimpleTestCase):
                 migrations.RemoveField("Foo", "age"),
             ],
             [],
+            state=ProjectState(models={("migrations", "foo"): ModelState("migrations", "Foo", {})}),
         )
 
     def test_alter_field_delete_field(self):
@@ -616,6 +621,11 @@ class OptimizerTests(SimpleTestCase):
             [
                 migrations.RemoveField("Foo", "age"),
             ],
+            state=ProjectState(models={
+                ("migrations", "foo"): ModelState("migrations", "Foo", fields=[
+                    ("age", models.IntegerField(null=True)),
+                ]),
+            })
         )
 
     def _test_create_alter_foo_field(self, alter):
@@ -825,6 +835,7 @@ class OptimizerTests(SimpleTestCase):
     def test_optimize_elidable_operation(self):
         elidable_operation = operations.base.Operation()
         elidable_operation.elidable = True
+        elidable_operation.state_forwards = lambda app_label, state: None
         self.assertOptimizesTo(
             [
                 elidable_operation,
