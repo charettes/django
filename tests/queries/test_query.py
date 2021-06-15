@@ -2,13 +2,16 @@ from datetime import datetime
 
 from django.core.exceptions import FieldError
 from django.db.models import BooleanField, CharField, F, Q
-from django.db.models.expressions import Col, Func
+from django.db.models.expressions import (
+    Col, Exists, ExpressionWrapper, Func, RawSQL,
+)
 from django.db.models.fields.related_lookups import RelatedIsNull
 from django.db.models.functions import Lower
 from django.db.models.lookups import Exact, GreaterThan, IsNull, LessThan
+from django.db.models.sql.constants import SINGLE
 from django.db.models.sql.query import Query
 from django.db.models.sql.where import OR
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.test.utils import register_lookup
 
 from .models import Author, Item, ObjectC, Ranking
@@ -150,3 +153,34 @@ class TestQuery(SimpleTestCase):
         msg = 'Cannot filter against a non-conditional expression.'
         with self.assertRaisesMessage(TypeError, msg):
             query.build_where(Func(output_field=CharField()))
+
+
+class FromEmptyQuery(TestCase):
+    def test_boolean_annotation(self):
+        query = Query(None)
+        query.add_annotation(
+            RawSQL('%s IS NULL', (None,), BooleanField()), '_check'
+        )
+        compiler = query.get_compiler(using='default')
+        result = compiler.execute_sql(SINGLE)
+        self.assertTrue(result[0])
+
+    def test_subquery_annotation(self):
+        query = Query(None)
+        query.add_annotation(
+            Exists(Item.objects.all()), '_check'
+        )
+        compiler = query.get_compiler(using='default')
+        result = compiler.execute_sql(SINGLE)
+        self.assertFalse(result[0])
+
+    def test_q_annotation(self):
+        query = Query(None)
+        check = ExpressionWrapper(
+            Q(RawSQL('%s IS NULL', (None,), BooleanField())) | Q(Exists(Item.objects.all())),
+            BooleanField()
+        )
+        query.add_annotation(check, '_check')
+        compiler = query.get_compiler(using='default')
+        result = compiler.execute_sql(SINGLE)
+        self.assertTrue(result[0])

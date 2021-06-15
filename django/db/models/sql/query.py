@@ -286,7 +286,8 @@ class Query(BaseExpression):
         processing. Normally, this is self.model._meta, but it can be changed
         by subclasses.
         """
-        return self.model._meta
+        if self.model:
+            return self.model._meta
 
     def clone(self):
         """
@@ -936,8 +937,10 @@ class Query(BaseExpression):
         if self.alias_map:
             alias = self.base_table
             self.ref_alias(alias)
-        else:
+        elif self.model:
             alias = self.join(BaseTable(self.get_meta().db_table, None))
+        else:
+            alias = None
         return alias
 
     def count_active_tables(self):
@@ -1022,7 +1025,8 @@ class Query(BaseExpression):
 
     def add_annotation(self, annotation, alias, is_summary=False, select=True):
         """Add a single annotation expression to the Query."""
-        annotation = annotation.resolve_expression(self, allow_joins=True, reuse=None,
+        allow_join = self.model is not None
+        annotation = annotation.resolve_expression(self, allow_joins=allow_join, reuse=None,
                                                    summarize=is_summary)
         if select:
             self.append_annotation_mask([alias])
@@ -1476,6 +1480,8 @@ class Query(BaseExpression):
             field = None
             filtered_relation = None
             try:
+                if opts is None:
+                    raise FieldDoesNotExist
                 field = opts.get_field(name)
             except FieldDoesNotExist:
                 if name in self.annotation_select:

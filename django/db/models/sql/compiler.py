@@ -276,8 +276,8 @@ class SQLCompiler:
             ordering = self.query.order_by
         elif self.query.order_by:
             ordering = self.query.order_by
-        elif self.query.get_meta().ordering:
-            ordering = self.query.get_meta().ordering
+        elif (meta := self.query.get_meta()) and meta.ordering:
+            ordering = meta.ordering
             self._meta_ordering = ordering
         else:
             ordering = []
@@ -562,7 +562,11 @@ class SQLCompiler:
                     params.extend(s_params)
                     out_cols.append(s_sql)
 
-                result += [', '.join(out_cols), 'FROM', *from_]
+                result += [', '.join(out_cols)]
+                if from_:
+                    result += ['FROM', *from_]
+                elif self.connection.ops.empty_from_sql:
+                    result += [self.connection.ops.empty_from_sql]
                 params.extend(f_params)
 
                 if self.query.select_for_update and self.connection.features.has_select_for_update:
@@ -687,6 +691,8 @@ class SQLCompiler:
         result = []
         if opts is None:
             opts = self.query.get_meta()
+            if opts is None:
+                return result
         only_load = self.deferred_to_columns()
         start_alias = start_alias or self.query.get_initial_alias()
         # The 'seen_models' is used to optimize checking the needed parent

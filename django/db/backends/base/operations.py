@@ -53,6 +53,9 @@ class BaseDatabaseOperations:
     # Prefix for EXPLAIN queries, or None EXPLAIN isn't supported.
     explain_prefix = None
 
+    # FROM statement for SELECT queries against no tables.
+    empty_from_sql = None
+
     def __init__(self, connection):
         self.connection = connection
         self._cache = None
