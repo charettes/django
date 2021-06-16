@@ -131,14 +131,20 @@ class CheckConstraintTests(TestCase):
         constraints = get_constraints(ChildModel._meta.db_table)
         self.assertIn('constraints_childmodel_adult', constraints)
 
+    def test_validate(self):
+        check = models.Q(price__gt=models.F('discounted_price'))
+        constraint = models.CheckConstraint(check=check, name='price')
+        with self.assertRaises(ValidationError):
+            constraint.validate(Product(price=10, discounted_price=42))
+        constraint.validate(Product(price=10, discounted_price=5))
+        constraint.validate(Product(price=10, discounted_price=42), exclude={'price'})
+
 
 class UniqueConstraintTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.p1, cls.p2 = UniqueConstraintProduct.objects.bulk_create([
-            UniqueConstraintProduct(name='p1', color='red'),
-            UniqueConstraintProduct(name='p2'),
-        ])
+        cls.p1 = UniqueConstraintProduct.objects.create(name='p1', color='red')
+        cls.p2 = UniqueConstraintProduct.objects.create(name='p2')
 
     def test_eq(self):
         self.assertEqual(
@@ -399,6 +405,65 @@ class UniqueConstraintTests(TestCase):
         msg = 'Unique constraint product with this Name and Color already exists.'
         with self.assertRaisesMessage(ValidationError, msg):
             UniqueConstraintProduct(name=self.p1.name, color=self.p1.color).validate_unique()
+
+    def test_validate(self):
+        constraint = models.UniqueConstraint(fields=['name', 'color'], name='name_color_uniq')
+        with self.assertRaises(ValidationError):
+            constraint.validate(
+                UniqueConstraintProduct(name=self.p1.name, color=self.p1.color),
+            )
+        # Null values are ignored.
+        constraint.validate(
+            UniqueConstraintProduct(name=self.p2.name, color=None),
+        )
+        # Existing instances have their existing row excluded.
+        constraint.validate(self.p1)
+
+    def test_validate_condition(self):
+        constraint = models.UniqueConstraint(
+            fields=['name'],
+            name='name_without_color_uniq',
+            condition=models.Q(color__isnull=True),
+        )
+        with self.assertRaises(ValidationError):
+            constraint.validate(
+                UniqueConstraintProduct(name=self.p1.name, color=None),
+            )
+        # Values not matching condition are ignored.
+        constraint.validate(
+            UniqueConstraintProduct(name=self.p1.name, color='anything-but-none'),
+        )
+        # Existing instances have their existing row excluded.
+        constraint.validate(self.p2)
+
+    def test_validate_expression(self):
+        constraint = models.UniqueConstraint(Lower('name'), name='name_lower_uniq')
+        with self.assertRaises(ValidationError):
+            constraint.validate(
+                UniqueConstraintProduct(name=self.p1.name.upper()),
+            )
+        constraint.validate(
+            UniqueConstraintProduct(name='another-name'),
+        )
+        # Existing instances have their existing row excluded.
+        constraint.validate(self.p1)
+
+    def test_validate_expression_condition(self):
+        constraint = models.UniqueConstraint(
+            Lower('name'),
+            name='name_lower_without_color_uniq',
+            condition=models.Q(color__isnull=True),
+        )
+        with self.assertRaises(ValidationError):
+            constraint.validate(
+                UniqueConstraintProduct(name=self.p2.name.upper()),
+            )
+        # Values not matching condition are ignored.
+        constraint.validate(
+            UniqueConstraintProduct(name=self.p1.name, color=self.p1.color),
+        )
+        # Existing instances have their existing row excluded.
+        constraint.validate(self.p2)
 
     @skipUnlessDBFeature('supports_partial_indexes')
     def test_model_validation_with_condition(self):

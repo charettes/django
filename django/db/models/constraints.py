@@ -1,9 +1,16 @@
 from enum import Enum
 
-from django.db.models.expressions import ExpressionList, F
+from django.db import connections
+from django.core.exceptions import FieldError, ValidationError
+from django.db.models.expressions import (
+    Exists, ExpressionList, ExpressionWrapper, F, Value,
+)
+from django.db.models.fields import BooleanField
 from django.db.models.indexes import IndexExpression
 from django.db.models.query_utils import Q
+from django.db.models.sql.constants import SINGLE
 from django.db.models.sql.query import Query
+from django.db.utils import DEFAULT_DB_ALIAS
 from django.utils.version import PY310
 
 __all__ = ['CheckConstraint', 'Deferrable', 'UniqueConstraint']
@@ -25,6 +32,9 @@ class BaseConstraint:
 
     def remove_sql(self, model, schema_editor):
         raise NotImplementedError('This method must be implemented by a subclass.')
+
+    def validate(self, instance, exclude=None, using=DEFAULT_DB_ALIAS):
+        pass
 
     def deconstruct(self):
         path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
@@ -63,6 +73,23 @@ class CheckConstraint(BaseConstraint):
 
     def remove_sql(self, model, schema_editor):
         return schema_editor._delete_check_sql(model, self.name)
+
+    def validate(self, instance, exclude=None, using=DEFAULT_DB_ALIAS):
+        query = Query(None)
+        for field in instance._meta.local_concrete_fields:
+            if exclude and field.name in exclude:
+                continue
+            value = getattr(instance, field.attname)
+            query.add_annotation(Value(value, field), field.name, select=False)
+        try:
+            query.add_annotation(ExpressionWrapper(self.check, BooleanField()), '_check')
+        except FieldError:
+            # Check is referencing an excluded field
+            return
+        compiler = query.get_compiler(using=using)
+        valid = compiler.execute_sql(SINGLE)[0]
+        if not valid:
+            raise ValidationError(f'Constraint {self.name} is violated')
 
     def __repr__(self):
         return '<%s: check=%s name=%s>' % (
@@ -255,3 +282,57 @@ class UniqueConstraint(BaseConstraint):
         if self.opclasses:
             kwargs['opclasses'] = self.opclasses
         return path, self.expressions, kwargs
+
+    def validate(self, instance, exclude=None, using=DEFAULT_DB_ALIAS):
+        queryset = instance.__class__._default_manager.using(using)
+        if self.fields:
+            lookup_kwargs = {}
+            for field_name in self.fields:
+                if exclude and field_name in exclude:
+                    return
+                field = instance._meta.get_field(field_name)
+                lookup_value = getattr(instance, field.attname)
+                if (lookup_value is None or
+                        (lookup_value == '' and connections[using].features.interprets_empty_strings_as_nulls)):
+                    # A composite constraint containing NULL value cannot caused
+                    # a violation since NULL != NULL in SQL.
+                    return
+                lookup_kwargs[field.name] = lookup_value
+            queryset = queryset.filter(**lookup_kwargs)
+        else:
+            replacement_map = {
+                field.name: Value(getattr(instance, field.attname), field)
+                for field in instance._meta.local_concrete_fields
+                if not exclude or field.name not in exclude
+            }
+            # XXX: Could use filter(Exact(expr, expr.replace_reference(replacement_map)), ...) directly when #27021 lands.
+            queryset = queryset.alias(**{
+                f'expr_{idx}': expr
+                for idx, expr in enumerate(self.expressions)
+            }).filter(**{
+                f'expr_{idx}': expr.replace_references(replacement_map)
+                for idx, expr in enumerate(self.expressions)
+            })
+        if not instance._state.adding and instance.pk is not None:
+            queryset = queryset.exclude(pk=instance.pk)
+        if not self.condition:
+            if queryset.exists():
+                raise ValidationError(f'Constraint {self.name} is violated')
+        else:
+            query = Query(None)
+            for field in instance._meta.local_concrete_fields:
+                if exclude and field.name in exclude:
+                    continue
+                value = getattr(instance, field.attname)
+                query.add_annotation(Value(value, field), field.name, select=False)
+            try:
+                query.add_annotation(ExpressionWrapper(
+                    ~self.condition | ~Exists(queryset), BooleanField()
+                ), '_check')
+            except FieldError:
+                # Condition is referencing an excluded field
+                return
+            compiler = query.get_compiler(using=using)
+            valid = compiler.execute_sql(SINGLE)[0]
+            if not valid:
+                raise ValidationError(f'Constraint {self.name} is violated')
