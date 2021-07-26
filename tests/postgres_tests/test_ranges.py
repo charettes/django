@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django import forms
 from django.core import exceptions, serializers
+from django.db import connection
 from django.db.models import DateField, DateTimeField, F, Func, Value
 from django.http import QueryDict
 from django.test import override_settings
@@ -20,16 +21,30 @@ from .models import (
 )
 
 try:
-    from psycopg2.extras import DateRange, DateTimeTZRange, NumericRange
-
-    from django.contrib.postgres import fields as pg_fields
-    from django.contrib.postgres import forms as pg_forms
+    from django.contrib.postgres import fields as pg_fields, forms as pg_forms
     from django.contrib.postgres.validators import (
         RangeMaxValueValidator,
         RangeMinValueValidator,
     )
 except ImportError:
     pass
+
+# To be set on test setup
+DateRange = DateTimeTZRange = NumericRange = None
+
+
+def init_ranges():
+    global DateRange, DateTimeTZRange, NumericRange
+
+    if DateRange is not None:
+        return
+
+    if connection.psycopg_version[0] < 3:
+        from psycopg2.extras import DateRange, DateTimeTZRange, NumericRange
+    else:
+        from psycopg.types.range import Range
+
+        DateRange = DateTimeTZRange = NumericRange = Range
 
 
 @isolate_apps("postgres_tests")
@@ -91,7 +106,17 @@ class BasicTests(PostgreSQLSimpleTestCase):
         self.assertEqual(kwargs, {"default_bounds": "[]"})
 
 
-class TestSaveLoad(PostgreSQLTestCase):
+class VersionChooserMixin:
+    """
+    Mixin to import the right objects in the module according to psycogp version
+    """
+
+    def setUp(self):
+        super().setUp()
+        init_ranges()
+
+
+class TestSaveLoad(VersionChooserMixin, PostgreSQLTestCase):
     def test_all_fields(self):
         now = timezone.now()
         instance = RangesModel(
@@ -258,9 +283,11 @@ class TestRangeContainsLookup(PostgreSQLTestCase):
                 )
 
 
-class TestQuerying(PostgreSQLTestCase):
+class TestQuerying(VersionChooserMixin, PostgreSQLTestCase):
     @classmethod
     def setUpTestData(cls):
+        init_ranges()
+
         cls.objs = RangesModel.objects.bulk_create(
             [
                 RangesModel(ints=NumericRange(0, 10)),
@@ -388,7 +415,7 @@ class TestQuerying(PostgreSQLTestCase):
                 )
 
 
-class TestQueryingWithRanges(PostgreSQLTestCase):
+class TestQueryingWithRanges(VersionChooserMixin, PostgreSQLTestCase):
     def test_date_range(self):
         objs = [
             RangeLookupsModel.objects.create(date="2015-01-01"),
@@ -546,7 +573,7 @@ class TestQueryingWithRanges(PostgreSQLTestCase):
         )
 
 
-class TestSerialization(PostgreSQLSimpleTestCase):
+class TestSerialization(VersionChooserMixin, PostgreSQLSimpleTestCase):
     test_data = (
         '[{"fields": {"ints": "{\\"upper\\": \\"10\\", \\"lower\\": \\"0\\", '
         '\\"bounds\\": \\"[)\\"}", "decimals": "{\\"empty\\": true}", '
@@ -651,7 +678,7 @@ class TestValidators(PostgreSQLSimpleTestCase):
             validator(NumericRange(None, 10))  # an unbound range
 
 
-class TestFormField(PostgreSQLSimpleTestCase):
+class TestFormField(VersionChooserMixin, PostgreSQLSimpleTestCase):
     def test_valid_integer(self):
         field = pg_forms.IntegerRangeField()
         value = field.clean(["1", "2"])
@@ -1071,7 +1098,7 @@ class TestFormField(PostgreSQLSimpleTestCase):
                 self.assertFalse(field.has_changed(value, value))
 
 
-class TestWidget(PostgreSQLSimpleTestCase):
+class TestWidget(VersionChooserMixin, PostgreSQLSimpleTestCase):
     def test_range_widget(self):
         f = pg_forms.ranges.DateTimeRangeField()
         self.assertHTMLEqual(

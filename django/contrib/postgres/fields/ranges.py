@@ -252,7 +252,16 @@ class DateRangeField(RangeField):
         return "daterange"
 
 
-RangeField.register_lookup(lookups.DataContains)
+class RangeContains(lookups.DataContains):
+    def as_postgresql(self, compiler, connection):
+        sql, params = super().as_postgresql(compiler, connection)
+        if params and not isinstance(params[0], RANGE_BASES):
+            cast_type = self.lhs.field.base_field.cast_db_type(connection)
+            sql = sql.replace("%s", "%%s::%s" % cast_type)
+        return sql, params
+
+
+RangeField.register_lookup(RangeContains)
 RangeField.register_lookup(lookups.ContainedBy)
 RangeField.register_lookup(lookups.Overlap)
 
