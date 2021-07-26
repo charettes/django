@@ -107,6 +107,11 @@ CONTRIB_TESTS_TO_APPS = {
     "deprecation": ["django.contrib.flatpages", "django.contrib.redirects"],
     "flatpages_tests": ["django.contrib.flatpages"],
     "redirects_tests": ["django.contrib.redirects"],
+    # NOTE: you would like to have this too. But you can't. Otherwise the test
+    # postgres_tests.test_apps.PostgresConfigTests will fail.
+    # 'postgres_tests': ['django.contrib.postgres'],
+    "postgres_tests.test_hstore": ["django.contrib.postgres"],
+    "postgres_tests.test_ranges": ["django.contrib.postgres"],
 }
 
 
