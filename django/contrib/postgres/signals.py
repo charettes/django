@@ -1,9 +1,5 @@
 import functools
 
-import psycopg2
-from psycopg2 import ProgrammingError
-from psycopg2.extras import register_hstore
-
 from django.db import connections
 from django.db.backends.base.base import NO_DB_ALIAS
 

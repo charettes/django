@@ -1,5 +1,3 @@
-import psycopg2
-
 from django.db.models import (
     CharField,
     Expression,

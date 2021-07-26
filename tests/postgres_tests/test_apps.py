@@ -6,15 +6,22 @@ from django.test.utils import modify_settings
 
 from . import PostgreSQLTestCase
 
-try:
-    from psycopg2.extras import DateRange, DateTimeRange, DateTimeTZRange, NumericRange
+from django.contrib.postgres.fields import (
+    DateRangeField,
+    DateTimeRangeField,
+    DecimalRangeField,
+    IntegerRangeField,
+)
 
-    from django.contrib.postgres.fields import (
-        DateRangeField,
-        DateTimeRangeField,
-        DecimalRangeField,
-        IntegerRangeField,
-    )
+ranges2 = None
+try:
+    from psycopg2 import extras as ranges2
+except ImportError:
+    pass
+
+ranges3 = None
+try:
+    from psycopg.types import range as ranges3
 except ImportError:
     pass
 
@@ -34,14 +41,25 @@ class PostgresConfigTests(PostgreSQLTestCase):
             register_type_handlers, connection_created._live_receivers(None)
         )
 
+    @unittest.skipIf(
+        connection.psycopg_version[0] >= 3, "TODO: psycopg3 migrations not implemented"
+    )
     def test_register_serializer_for_migrations(self):
-        tests = (
-            (DateRange(empty=True), DateRangeField),
-            (DateTimeRange(empty=True), DateRangeField),
-            (DateTimeTZRange(None, None, "[]"), DateTimeRangeField),
-            (NumericRange(Decimal("1.0"), Decimal("5.0"), "()"), DecimalRangeField),
-            (NumericRange(1, 10), IntegerRangeField),
-        )
+        if connection.psycopg_version[0] < 3:
+            tests = [
+                (ranges2.DateRange(empty=True), DateRangeField),
+                (ranges2.DateTimeRange(empty=True), DateRangeField),
+                (ranges2.DateTimeTZRange(None, None, "[]"), DateTimeRangeField),
+                (
+                    ranges2.NumericRange(Decimal("1.0"), Decimal("5.0"), "()"),
+                    DecimalRangeField,
+                ),
+                (ranges2.NumericRange(1, 10), IntegerRangeField),
+            ]
+        else:
+            tests = [
+                (ranges3.Range(1, 10), IntegerRangeField),
+            ]
 
         def assertNotSerializable():
             for default, test_field in tests:

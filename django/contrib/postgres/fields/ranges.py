@@ -1,13 +1,27 @@
 import datetime
 import json
 
-from psycopg2.extras import DateRange, DateTimeTZRange, NumericRange, Range
+# Import modules ranges2 and ranges3 from psycopg2 and > 2 where to look up
+# Range objects. Don't crash on import if not found: they won't be used.
+try:
+    from psycopg.types import range as ranges3
+except ImportError:
+    ranges3 = None
+
+try:
+    from psycopg2 import extras as ranges2
+except ImportError:
+    ranges2 = None
 
 from django.contrib.postgres import forms, lookups
-from django.db import models
+from django.db import models, connection
 from django.db.models.lookups import PostgresOperatorLookup
 
 from .utils import AttributeSetter
+
+RANGE_BASES = (
+    ((ranges3.Range,) if ranges3 else ()) + ((ranges2.Range,) if ranges2 else ())
+)
 
 __all__ = [
     "RangeField",
@@ -84,7 +98,7 @@ class RangeField(models.Field):
     def get_prep_value(self, value):
         if value is None:
             return None
-        elif isinstance(value, Range):
+        elif isinstance(value, RANGE_BASES):
             return value
         elif isinstance(value, (list, tuple)):
             return self.range_type(value[0], value[1])
@@ -101,6 +115,10 @@ class RangeField(models.Field):
         elif isinstance(value, (list, tuple)):
             value = self.range_type(value[0], value[1])
         return value
+
+    @property
+    def range_type(self):
+        raise NotImplementedError
 
     def set_attributes_from_name(self, name):
         super().set_attributes_from_name(name)
@@ -161,8 +179,14 @@ class ContinuousRangeField(RangeField):
 
 class IntegerRangeField(RangeField):
     base_field = models.IntegerField
-    range_type = NumericRange
     form_field = forms.IntegerRangeField
+
+    @property
+    def range_type(self):
+        if connection.psycopg_version[0] >= 3:
+            return ranges3.Range
+        else:
+            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "int4range"
@@ -170,8 +194,14 @@ class IntegerRangeField(RangeField):
 
 class BigIntegerRangeField(RangeField):
     base_field = models.BigIntegerField
-    range_type = NumericRange
     form_field = forms.IntegerRangeField
+
+    @property
+    def range_type(self):
+        if connection.psycopg_version[0] >= 3:
+            return ranges3.Range
+        else:
+            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "int8range"
@@ -179,8 +209,14 @@ class BigIntegerRangeField(RangeField):
 
 class DecimalRangeField(ContinuousRangeField):
     base_field = models.DecimalField
-    range_type = NumericRange
     form_field = forms.DecimalRangeField
+
+    @property
+    def range_type(self):
+        if connection.psycopg_version[0] >= 3:
+            return ranges3.Range  # Can cast to any numeric type
+        else:
+            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "numrange"
@@ -188,8 +224,14 @@ class DecimalRangeField(ContinuousRangeField):
 
 class DateTimeRangeField(ContinuousRangeField):
     base_field = models.DateTimeField
-    range_type = DateTimeTZRange
     form_field = forms.DateTimeRangeField
+
+    @property
+    def range_type(self):
+        if connection.psycopg_version[0] >= 3:
+            return ranges3.Range
+        else:
+            return ranges2.DateTimeTZRange
 
     def db_type(self, connection):
         return "tstzrange"
@@ -197,8 +239,14 @@ class DateTimeRangeField(ContinuousRangeField):
 
 class DateRangeField(RangeField):
     base_field = models.DateField
-    range_type = DateRange
     form_field = forms.DateRangeField
+
+    @property
+    def range_type(self):
+        if connection.psycopg_version[0] >= 3:
+            return ranges3.Range
+        else:
+            return ranges2.DateRange
 
     def db_type(self, connection):
         return "daterange"

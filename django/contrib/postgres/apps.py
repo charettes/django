@@ -1,4 +1,16 @@
-from psycopg2.extras import DateRange, DateTimeRange, DateTimeTZRange, NumericRange
+try:
+    from psycopg2.extras import DateRange, DateTimeRange, DateTimeTZRange, NumericRange
+except ImportError:
+    RANGE_TYPES = ()
+else:
+    RANGE_TYPES = (DateRange, DateTimeRange, DateTimeTZRange, NumericRange)
+
+try:
+    from psycopg3.types.range import Range
+except ImportError:
+    pass
+else:
+    RANGE_TYPES += (Range,)
 
 from django.apps import AppConfig
 from django.core.signals import setting_changed
@@ -20,8 +32,6 @@ from .lookups import (
 )
 from .serializers import RangeSerializer
 from .signals import register_type_handlers
-
-RANGE_TYPES = (DateRange, DateTimeRange, DateTimeTZRange, NumericRange)
 
 
 def uninstall_if_needed(setting, value, enter, **kwargs):
