@@ -14,7 +14,7 @@ from django.core.files.temp import NamedTemporaryFile
 from django.core.management import CommandError
 from django.core.management.commands.dumpdata import ProxyModelWarning
 from django.core.serializers.base import ProgressBar
-from django.db import IntegrityError, connection
+from django.db import DataError, IntegrityError, connection
 from django.test import TestCase, TransactionTestCase, skipUnlessDBFeature
 
 from .models import (
@@ -917,14 +917,12 @@ class FixtureLoadingTests(DumpDataAssertMixin, TestCase):
             management.call_command("loaddata", "invalid.json", verbosity=0)
 
     @unittest.skipUnless(
-        connection.vendor == "postgresql", "psycopg2 prohibits null characters in data."
+        connection.vendor == "postgresql",
+        "PostgreSQL prohibits null characters in data.",
     )
     def test_loaddata_null_characters_on_postgresql(self):
-        msg = (
-            "Could not load fixtures.Article(pk=2): "
-            "A string literal cannot contain NUL (0x00) characters."
-        )
-        with self.assertRaisesMessage(ValueError, msg):
+        pattern = r"Could not load fixtures\.Article\(pk=2\): .*\(0x00\)"
+        with self.assertRaisesRegex((ValueError, DataError), pattern):
             management.call_command("loaddata", "null_character_in_field_value.json")
 
     def test_loaddata_app_option(self):

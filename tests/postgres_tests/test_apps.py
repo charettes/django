@@ -1,5 +1,7 @@
 from decimal import Decimal
+import unittest
 
+from django.db import connection
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
 from django.test.utils import modify_settings

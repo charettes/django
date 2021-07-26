@@ -3,6 +3,7 @@ import unittest
 from io import StringIO
 from unittest import mock
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import (
     DEFAULT_DB_ALIAS,
@@ -13,6 +14,7 @@ from django.db import (
 )
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.test import TestCase, override_settings
+from django.utils.module_loading import import_string
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -218,7 +220,8 @@ class Tests(TestCase):
         finally:
             new_connection.close()
 
-    def test_connect_isolation_level(self):
+    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
+    def test_connect_isolation_level_psycopg2(self):
         """
         The transaction level can be configured with
         DATABASES ['OPTIONS']['isolation_level'].
@@ -241,6 +244,30 @@ class Tests(TestCase):
         finally:
             new_connection.close()
 
+    @unittest.skipUnless(connection.psycopg_version[0] >= 3, "psycopg >= 3 test")
+    def test_connect_isolation_level(self):
+        """
+        The transaction level can be configured with
+        DATABASES ['OPTIONS']['isolation_level'].
+        """
+        import psycopg
+
+        self.assertEqual(connection.connection.isolation_level, None)
+
+        new_connection = connection.copy()
+        new_connection.settings_dict["OPTIONS"][
+            "isolation_level"
+        ] = psycopg.IsolationLevel.REPEATABLE_READ
+        try:
+            new_connection.set_autocommit(False)
+            # Check the level on the psycopg2 connection, not the Django wrapper.
+            self.assertEqual(
+                new_connection.connection.isolation_level,
+                psycopg.IsolationLevel.REPEATABLE_READ,
+            )
+        finally:
+            new_connection.close()
+
     def test_connect_no_is_usable_checks(self):
         new_connection = connection.copy()
         try:
@@ -252,7 +279,7 @@ class Tests(TestCase):
 
     def _select(self, val):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT %s", (val,))
+            cursor.execute("SELECT %s::text[]", (val,))
             return cursor.fetchone()[0]
 
     def test_select_ascii_array(self):
@@ -291,6 +318,7 @@ class Tests(TestCase):
                         "::citext", do.lookup_cast(lookup, internal_type=field_type)
                     )
 
+    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
     def test_correct_extraction_psycopg2_version(self):
         from django.db.backends.postgresql.base import psycopg2_version
 
@@ -299,6 +327,7 @@ class Tests(TestCase):
         with mock.patch("psycopg2.__version__", "4.2b0.dev1 (dt dec pq3 ext lo64)"):
             self.assertEqual(psycopg2_version(), (4, 2))
 
+    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
     @override_settings(DEBUG=True)
     def test_copy_cursors(self):
         out = StringIO()
@@ -322,3 +351,13 @@ class Tests(TestCase):
         with self.assertRaisesMessage(NotSupportedError, msg):
             connection.check_database_version_supported()
         self.assertTrue(mocked_get_database_version.called)
+
+    @unittest.skipUnless(connection.psycopg_version[0] >= 3, "psycopg > 2 test")
+    @override_settings(DEBUG=True)
+    def test_copy_cursors_3(self):
+        copy_sql = "COPY django_session TO STDOUT (FORMAT CSV, HEADER)"
+        with connection.cursor() as cursor:
+            with cursor.copy(copy_sql) as copy:
+                for row in copy:
+                    pass
+        self.assertEqual([q["sql"] for q in connection.queries], [copy_sql])
