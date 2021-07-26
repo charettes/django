@@ -316,6 +316,17 @@ class ArrayInLookup(In):
                 prepared_values.append(tuple(value))
         return prepared_values
 
+    def batch_process_rhs(self, compiler, connection, rhs=None):
+        # Cast the RHS items to the LHS, because there are cases in which
+        # Postgres cannot infer the right type. For instance
+        # postgres_tests.test_array.TestQuerying.test_in fails with
+        # "operator does not exist: integer[] = numeric[]", although it's
+        # possible to cast manually numeric[]::integer[].
+        sqls, sqls_params = super().batch_process_rhs(compiler, connection, rhs)
+        cast_ph = "%s::" + self.lhs.field.cast_db_type(connection)
+        sqls = tuple(cast_ph if sql == "%s" else sql for sql in sqls)
+        return sqls, sqls_params
+
 
 class IndexTransform(Transform):
     def __init__(self, index, base_field, *args, **kwargs):
