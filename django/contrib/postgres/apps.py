@@ -34,7 +34,7 @@ from .serializers import RangeSerializer
 from .signals import register_type_handlers
 
 
-def uninstall_if_needed(setting, value, enter, **kwargs):
+def uninstall_if_needed(setting, enter, value=None, **kwargs):
     """
     Undo the effects of PostgresConfig.ready() when django.contrib.postgres
     is "uninstalled" by override_settings().
