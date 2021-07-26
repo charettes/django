@@ -557,23 +557,28 @@ class InspectDBTransactionalTests(TransactionTestCase):
 
     @skipUnless(connection.vendor == "postgresql", "PostgreSQL specific SQL")
     def test_foreign_data_wrapper(self):
+        if connection.psycopg_version[0] < 3:
+            from psycopg2 import sql
+        else:
+            from psycopg import sql
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS file_fdw")
             cursor.execute(
                 "CREATE SERVER inspectdb_server FOREIGN DATA WRAPPER file_fdw"
             )
             cursor.execute(
-                """\
+                sql.SQL(
+                    """
                 CREATE FOREIGN TABLE inspectdb_iris_foreign_table (
                     petal_length real,
                     petal_width real,
                     sepal_length real,
                     sepal_width real
                 ) SERVER inspectdb_server OPTIONS (
-                    filename %s
+                    filename {}
                 )
-            """,
-                [os.devnull],
+            """
+                ).format(sql.Literal(os.devnull))
             )
         out = StringIO()
         foreign_table_model = "class InspectdbIrisForeignTable(models.Model):"
