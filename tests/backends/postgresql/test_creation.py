@@ -4,18 +4,38 @@ from io import StringIO
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db import DatabaseError, connection
+from django.conf import settings
+from django.db import DatabaseError, connection, DEFAULT_DB_ALIAS
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.test import SimpleTestCase
+from django.utils.module_loading import import_string
 
+psycopg2 = None
 try:
     import psycopg2  # NOQA
 except ImportError:
     pass
 else:
-    from psycopg2 import errorcodes
+    import psycopg2.errorcodes
 
-    from django.db.backends.postgresql.creation import DatabaseCreation
+
+psycopg = None
+try:
+    import psycopg
+except ImportError:
+    pass
+else:
+    import psycopg.errors
+
+
+def set_pgcode(error, const_name):
+    """Hack up an exception to resemble one raised by psycopg."""
+    if psycopg2:
+        error.pgcode = getattr(psycopg2.errorcodes, const_name)
+    elif psycopg:
+        error.sqlstate = psycopg.errors.lookup(const_name).sqlstate
+    else:
+        raise ImportError("no psycopg module available")
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -41,7 +61,7 @@ class DatabaseCreationTests(SimpleTestCase):
 
     def check_sql_table_creation_suffix(self, settings, expected):
         with self.changed_test_settings(**settings):
-            creation = DatabaseCreation(connection)
+            creation = self.database_creation_class(connection)
             suffix = creation.sql_table_creation_suffix()
             self.assertEqual(suffix, expected)
 
@@ -74,12 +94,12 @@ class DatabaseCreationTests(SimpleTestCase):
 
     def _execute_raise_database_already_exists(self, cursor, parameters, keepdb=False):
         error = DatabaseError("database %s already exists" % parameters["dbname"])
-        error.pgcode = errorcodes.DUPLICATE_DATABASE
+        set_pgcode(error, "DUPLICATE_DATABASE")
         raise DatabaseError() from error
 
     def _execute_raise_permission_denied(self, cursor, parameters, keepdb=False):
         error = DatabaseError("permission denied to create database")
-        error.pgcode = errorcodes.INSUFFICIENT_PRIVILEGE
+        set_pgcode(error, "INSUFFICIENT_PRIVILEGE")
         raise DatabaseError() from error
 
     def patch_test_db_creation(self, execute_create_test_db):
@@ -90,7 +110,7 @@ class DatabaseCreationTests(SimpleTestCase):
     @mock.patch("sys.stdout", new_callable=StringIO)
     @mock.patch("sys.stderr", new_callable=StringIO)
     def test_create_test_db(self, *mocked_objects):
-        creation = DatabaseCreation(connection)
+        creation = self.database_creation_class(connection)
         # Simulate test database creation raising "database already exists"
         with self.patch_test_db_creation(self._execute_raise_database_already_exists):
             with mock.patch("builtins.input", return_value="no"):
@@ -105,7 +125,7 @@ class DatabaseCreationTests(SimpleTestCase):
         # Simulate test database creation raising unexpected error
         with self.patch_test_db_creation(self._execute_raise_permission_denied):
             with mock.patch.object(
-                DatabaseCreation, "_database_exists", return_value=False
+                self.database_creation_class, "_database_exists", return_value=False
             ):
                 with self.assertRaises(SystemExit):
                     creation._create_test_db(
@@ -120,6 +140,13 @@ class DatabaseCreationTests(SimpleTestCase):
         # exists.
         with self.patch_test_db_creation(self._execute_raise_permission_denied):
             with mock.patch.object(
-                DatabaseCreation, "_database_exists", return_value=True
+                self.database_creation_class, "_database_exists", return_value=True
             ):
                 creation._create_test_db(verbosity=0, autoclobber=False, keepdb=True)
+
+    @property
+    def database_creation_class(self):
+        return import_string(
+            settings.DATABASES[DEFAULT_DB_ALIAS]["ENGINE"]
+            + ".creation.DatabaseCreation"
+        )
