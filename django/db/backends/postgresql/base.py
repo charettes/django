@@ -362,6 +362,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             else:
                 raise
 
+    @property
+    def psycopg_version(self):
+        return PSYCOPG2_VERSION
+
     @cached_property
     def pg_version(self):
         with self.temporary_connection():
