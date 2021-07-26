@@ -23,8 +23,13 @@ class ServerSideCursorsPostgres(TestCase):
 
     def inspect_cursors(self):
         with connection.cursor() as cursor:
+            # Note: Postgres shows a cursor with no name if prepared statements
+            # have been used. Avoid to fetch it or this very query below will
+            # be reported as created by a named cursor.
             cursor.execute(
-                "SELECT {fields} FROM pg_cursors;".format(fields=self.cursor_fields)
+                "SELECT {fields} FROM pg_cursors where name <> ''".format(
+                    fields=self.cursor_fields
+                )
             )
             cursors = cursor.fetchall()
         return [self.PostgresCursor._make(cursor) for cursor in cursors]
