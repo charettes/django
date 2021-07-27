@@ -276,3 +276,23 @@ class ConnectionRouter:
         """Return app models allowed to be migrated on provided db."""
         models = app_config.get_models(include_auto_created=include_auto_created)
         return [model for model in models if self.allow_migrate_model(db, model)]
+
+
+class Text(str):
+    """
+    A string subclass to force saving it as text rather than unknown.
+
+    This is a helper for server-side parameters binding, using which text vs.
+    unknown is different in certain contexts (such as in variadic functions,
+    e.g. concat()).
+
+    Psycopg 3 declares Python strings unknown, otherwise automatic cast fails
+    in many more places than the opposite choice.
+
+    Note that, because it is a subclass of str, psycopg2 will dump it
+    automatically as string, so its use should be transparent.
+    """
+    __slots__ = ()
+
+    def __repr__(self):
+        return "%s(%s)" % (self.__class__.__name__, super().__repr__())
