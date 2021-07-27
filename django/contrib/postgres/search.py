@@ -12,6 +12,20 @@ from django.db.models.expressions import CombinedExpression, register_combinable
 from django.db.models.functions import Cast, Coalesce
 
 
+def merge_client_side(connection, query, params):
+    """
+    Merge an sql expression and a sequence of parameters on the client side
+    """
+    if connection.psycopg_version[0] > 2:
+        from psycopg import sql
+    else:
+        from psycopg2 import sql
+
+    query = sql.SQL(query.replace("{", "{{").replace("}", "}}").replace("%s", "{}"))
+    merged = query.format(*map(sql.Literal, params))
+    return merged.as_string(connection.cursor().cursor)
+
+
 class SearchVectorExact(Lookup):
     lookup_name = "exact"
 
@@ -138,7 +152,11 @@ class SearchVector(SearchVectorCombinable, Func):
         if clone.weight:
             weight_sql, extra_params = compiler.compile(clone.weight)
             sql = "setweight({}, {})".format(sql, weight_sql)
-        return sql, config_params + params + extra_params
+
+        # These parameters must be bound on the client side because we may
+        # want to create an index on this expression.
+        sql = merge_client_side(connection, sql, config_params + params + extra_params)
+        return sql, []
 
 
 class CombinedSearchVector(SearchVectorCombinable, CombinedExpression):
@@ -310,11 +328,7 @@ class SearchHeadline(Func):
             # getquoted() returns a quoted bytestring of the adapted value.
             options_params.append(
                 ", ".join(
-                    "%s=%s"
-                    % (
-                        option,
-                        psycopg2.extensions.adapt(value).getquoted().decode(),
-                    )
+                    merge_client_side(connection, "%s=%%s" % option, [value])
                     for option, value in self.options.items()
                 )
             )
