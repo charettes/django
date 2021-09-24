@@ -76,9 +76,9 @@ def register_type_handlers_psycopg3(connection, **kwargs):
     oids, array_oids = get_hstore_oids(connection.alias)
     for oid, array_oid in zip(oids, array_oids):
         ti = psycopg.types.TypeInfo("hstore", oid, array_oid)
-        psycopg.types.hstore.register_adapters(ti)
+        psycopg.types.hstore.register_hstore(ti, connection.connection)
 
     citext_oids = get_citext_oids(connection.alias)
     for array_oid in citext_oids:
         ti = psycopg.types.TypeInfo("citext", 0, array_oid)
-        ti.register()
+        ti.register(connection.connection)
