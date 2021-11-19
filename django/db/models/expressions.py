@@ -933,6 +933,22 @@ class ExpressionList(Func):
         return self.as_sql(compiler, connection, **extra_context)
 
 
+class OrderByList(Func):
+    template = 'ORDER BY %(expressions)s'
+
+    def __init__(self, *expressions, **extra):
+        expressions = (
+            (OrderBy(F(expr[1:]), descending=True) if isinstance(expr, str) and expr[0] == '-' else expr)
+            for expr in expressions
+        )
+        super().__init__(*expressions, **extra)
+
+    def as_sql(self, *args, **kwargs):
+        if not self.source_expressions:
+            return '', ()
+        return super().as_sql(*args, **kwargs)
+
+
 class ExpressionWrapper(SQLiteNumericMixin, Expression):
     """
     An expression that can wrap another expression so that it can provide
@@ -1313,8 +1329,10 @@ class Window(SQLiteNumericMixin, Expression):
 
         if self.order_by is not None:
             if isinstance(self.order_by, (list, tuple)):
-                self.order_by = ExpressionList(*self.order_by)
-            elif not isinstance(self.order_by, BaseExpression):
+                self.order_by = OrderByList(*self.order_by)
+            elif isinstance(self.order_by, BaseExpression):
+                self.order_by = OrderByList(self.order_by)
+            else:
                 raise ValueError(
                     'order_by must be either an Expression or a sequence of '
                     'expressions.'
@@ -1347,14 +1365,13 @@ class Window(SQLiteNumericMixin, Expression):
             window_params.extend(sql_params)
 
         if self.order_by is not None:
-            window_sql.append(' ORDER BY ')
             order_sql, order_params = compiler.compile(self.order_by)
             window_sql.extend(order_sql)
             window_params.extend(order_params)
 
         if self.frame:
             frame_sql, frame_params = compiler.compile(self.frame)
-            window_sql.append(' ' + frame_sql)
+            window_sql.append(frame_sql)
             window_params.extend(frame_params)
 
         params.extend(window_params)
@@ -1362,7 +1379,7 @@ class Window(SQLiteNumericMixin, Expression):
 
         return template % {
             'expression': expr_sql,
-            'window': ''.join(window_sql).strip()
+            'window': ' '.join(window_sql).strip()
         }, params
 
     def as_sqlite(self, compiler, connection):
