@@ -3,39 +3,17 @@ from contextlib import contextmanager
 from io import StringIO
 from unittest import mock
 
-from django.core.exceptions import ImproperlyConfigured
 from django.conf import settings
-from django.db import DatabaseError, connection, DEFAULT_DB_ALIAS
+from django.core.exceptions import ImproperlyConfigured
+from django.db import DEFAULT_DB_ALIAS, DatabaseError, connection
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.test import SimpleTestCase
 from django.utils.module_loading import import_string
 
-psycopg2 = None
 try:
-    import psycopg2  # NOQA
+    from psycopg import errors as psycopg_errors
 except ImportError:
-    pass
-else:
-    import psycopg2.errorcodes
-
-
-psycopg = None
-try:
-    import psycopg
-except ImportError:
-    pass
-else:
-    import psycopg.errors
-
-
-def set_pgcode(error, const_name):
-    """Hack up an exception to resemble one raised by psycopg."""
-    if psycopg2:
-        error.pgcode = getattr(psycopg2.errorcodes, const_name)
-    elif psycopg:
-        error.sqlstate = psycopg.errors.lookup(const_name).sqlstate
-    else:
-        raise ImportError("no psycopg module available")
+    from psycopg2 import errors as psycopg_errors
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -93,13 +71,15 @@ class DatabaseCreationTests(SimpleTestCase):
             self.check_sql_table_creation_suffix(settings, None)
 
     def _execute_raise_database_already_exists(self, cursor, parameters, keepdb=False):
-        error = DatabaseError("database %s already exists" % parameters["dbname"])
-        set_pgcode(error, "DUPLICATE_DATABASE")
+        error = psycopg_errors.DuplicateDatabase(
+            "database %s already exists" % parameters["dbname"]
+        )
         raise DatabaseError() from error
 
     def _execute_raise_permission_denied(self, cursor, parameters, keepdb=False):
-        error = DatabaseError("permission denied to create database")
-        set_pgcode(error, "INSUFFICIENT_PRIVILEGE")
+        error = psycopg_errors.InsufficientPrivilege(
+            "permission denied to create database"
+        )
         raise DatabaseError() from error
 
     def patch_test_db_creation(self, execute_create_test_db):

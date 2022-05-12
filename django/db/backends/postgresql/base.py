@@ -1,7 +1,7 @@
 """
 PostgreSQL database backend for Django.
 
-Requires psycopg > 2: https://www.psycopg.org/psycopg3/
+Requires psycopg2 >= 2.8.4 or psycopg3
 """
 
 import asyncio
@@ -11,11 +11,10 @@ from contextlib import contextmanager
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.db import DatabaseError as WrappedDatabaseError, connections
+from django.db import DatabaseError as WrappedDatabaseError
+from django.db import connections
 from django.db.backends.base.base import BaseDatabaseWrapper
-from django.db.backends.utils import (
-    CursorDebugWrapper as BaseCursorDebugWrapper,
-)
+from django.db.backends.utils import CursorDebugWrapper as BaseCursorDebugWrapper
 from django.db.utils import Text
 from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
@@ -39,13 +38,20 @@ TSTZRANGE_OID = psycopg.postgres.types["tstzrange"].oid
 
 
 def psycopg_version():
-    version = Database.__version__
+    version = Database.__version__.split(" ", 1)[0]
     return get_version_tuple(version)
 
 
 PSYCOPG_VERSION = psycopg_version()
 
-# Some of these import psycopg3, so import them after checking if it's installed.
+
+if PSYCOPG_VERSION < (2, 8, 4):
+    raise ImproperlyConfigured(
+        "psycopg2 version 2.8.4 or newer is required; you have %s"
+        % Database.__version__
+    )
+
+# Some of these import psycopg, so import them after checking if it's installed.
 from .client import DatabaseClient  # NOQA isort:skip
 from .creation import DatabaseCreation  # NOQA isort:skip
 from .features import DatabaseFeatures  # NOQA isort:skip
@@ -225,8 +231,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 self.isolation_level = Database.IsolationLevel(isolevel)
             except ValueError:
                 raise ImproperlyConfigured(
-                    "bad isolation_level: %s. Choose one of the 'psycopg.IsolationLevel' values"
-                    % (options["isolation_level"],)
+                    "bad isolation_level: %s. Choose one of the "
+                    "'psycopg.IsolationLevel' values" % (options["isolation_level"],)
                 )
             connection.isolation_level = self.isolation_level
 
@@ -314,12 +320,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # For now, it's here so that every use of "threading" is
         # also async-compatible.
         try:
-            if hasattr(asyncio, "current_task"):
-                # Python 3.7 and up
-                current_task = asyncio.current_task()
-            else:
-                # Python 3.6
-                current_task = asyncio.Task.current_task()
+            current_task = asyncio.current_task()
         except RuntimeError:
             current_task = None
         # Current task can be none even if the current_task call didn't error
