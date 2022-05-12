@@ -4,12 +4,16 @@ from collections.abc import Mapping, Sequence
 from functools import lru_cache, partial
 
 from psycopg2.extras import Json as Jsonb
-from pyscopg.sql import SQL, Literal
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
+
+try:
+    from psycopg.sql import SQL, Literal
+except ImportError:
+    from psycopg2.sql import SQL, Literal
 
 
 @lru_cache
