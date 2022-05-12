@@ -3,17 +3,17 @@ from contextlib import contextmanager
 from io import StringIO
 from unittest import mock
 
-from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.db import DEFAULT_DB_ALIAS, DatabaseError, connection
+from django.db import DatabaseError, connection
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.test import SimpleTestCase
-from django.utils.module_loading import import_string
 
 try:
     from django.db.backends.postgresql.psycopg_any import errors  # NOQA
 except ImportError:
     pass
+else:
+    from django.db.backends.postgresql.creation import DatabaseCreation
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -39,7 +39,7 @@ class DatabaseCreationTests(SimpleTestCase):
 
     def check_sql_table_creation_suffix(self, settings, expected):
         with self.changed_test_settings(**settings):
-            creation = self.database_creation_class(connection)
+            creation = DatabaseCreation(connection)
             suffix = creation.sql_table_creation_suffix()
             self.assertEqual(suffix, expected)
 
@@ -88,7 +88,7 @@ class DatabaseCreationTests(SimpleTestCase):
     @mock.patch("sys.stdout", new_callable=StringIO)
     @mock.patch("sys.stderr", new_callable=StringIO)
     def test_create_test_db(self, *mocked_objects):
-        creation = self.database_creation_class(connection)
+        creation = DatabaseCreation(connection)
         # Simulate test database creation raising "database already exists"
         with self.patch_test_db_creation(self._execute_raise_database_already_exists):
             with mock.patch("builtins.input", return_value="no"):
@@ -103,7 +103,7 @@ class DatabaseCreationTests(SimpleTestCase):
         # Simulate test database creation raising unexpected error
         with self.patch_test_db_creation(self._execute_raise_permission_denied):
             with mock.patch.object(
-                self.database_creation_class, "_database_exists", return_value=False
+                DatabaseCreation, "_database_exists", return_value=False
             ):
                 with self.assertRaises(SystemExit):
                     creation._create_test_db(
@@ -118,13 +118,6 @@ class DatabaseCreationTests(SimpleTestCase):
         # exists.
         with self.patch_test_db_creation(self._execute_raise_permission_denied):
             with mock.patch.object(
-                self.database_creation_class, "_database_exists", return_value=True
+                DatabaseCreation, "_database_exists", return_value=True
             ):
                 creation._create_test_db(verbosity=0, autoclobber=False, keepdb=True)
-
-    @property
-    def database_creation_class(self):
-        return import_string(
-            settings.DATABASES[DEFAULT_DB_ALIAS]["ENGINE"]
-            + ".creation.DatabaseCreation"
-        )
