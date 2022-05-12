@@ -2,8 +2,6 @@ from datetime import date
 
 from django.test import modify_settings
 
-from django.db import connection
-
 from . import PostgreSQLTestCase
 from .models import (
     HStoreModel,
@@ -14,17 +12,15 @@ from .models import (
     RangesModel,
 )
 
+try:
+    from django.db.backends.postgresql.psycopg_any import DateRange, NumericRange
+except ImportError:
+    pass  # psycopg isn't installed.
+
 
 @modify_settings(INSTALLED_APPS={"append": "django.contrib.postgres"})
 class BulkSaveTests(PostgreSQLTestCase):
     def test_bulk_update(self):
-        if connection.psycopg_version[0] < 3:
-            from psycopg2.extras import DateRange, NumericRange
-        else:
-            from psycopg.types.range import Range
-
-            DateRange = NumericRange = Range
-
         test_data = [
             (IntegerArrayModel, "field", [], [1, 2, 3]),
             (NullableIntegerArrayModel, "field", [1, 2, 3], None),

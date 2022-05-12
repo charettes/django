@@ -557,10 +557,8 @@ class InspectDBTransactionalTests(TransactionTestCase):
 
     @skipUnless(connection.vendor == "postgresql", "PostgreSQL specific SQL")
     def test_foreign_data_wrapper(self):
-        if connection.psycopg_version[0] < 3:
-            from psycopg2 import sql
-        else:
-            from psycopg import sql
+        from django.db.backends.postgresql.psycopg_any import sql
+
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS file_fdw")
             cursor.execute(

@@ -19,24 +19,20 @@ from .models import (
     SmallAutoFieldModel,
 )
 
-# To be set on test setup
 try:
-    from psycopg.types.range import Range
-
-    has_psycopg = True
-    DateRange = DateTimeTZRange = NumericRange = Range
-except ImportError:
-    from psycopg2.extras import DateRange, DateTimeTZRange, NumericRange
-
-    has_psycopg = True
-
-if has_psycopg:
     from django.contrib.postgres import fields as pg_fields
     from django.contrib.postgres import forms as pg_forms
     from django.contrib.postgres.validators import (
         RangeMaxValueValidator,
         RangeMinValueValidator,
     )
+    from django.db.backends.postgresql.psycopg_any import (
+        DateRange,
+        DateTimeTZRange,
+        NumericRange,
+    )
+except ImportError:
+    pass
 
 
 @isolate_apps("postgres_tests")

@@ -1,7 +1,6 @@
 import datetime
 from unittest import mock
 
-from django.conf import settings
 from django.contrib.postgres.indexes import OpClass
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, NotSupportedError, connection, transaction
@@ -32,6 +31,7 @@ try:
         RangeBoundary,
         RangeOperators,
     )
+    from django.db.backends.postgresql.psycopg_any import DateRange, NumericRange
 except ImportError:
     pass
 
@@ -51,11 +51,6 @@ class SchemaTests(PostgreSQLTestCase):
             return connection.introspection.get_constraints(cursor, table)
 
     def test_check_constraint_range_value(self):
-        if connection.psycopg_version[0] < 3:
-            from psycopg2.extras import NumericRange
-        else:
-            from psycopg.types.range import Range as NumericRange
-
         constraint_name = "ints_between"
         self.assertNotIn(
             constraint_name, self.get_constraints(RangesModel._meta.db_table)
@@ -655,11 +650,6 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
         )
 
     def _test_range_overlaps(self, constraint):
-        if connection.psycopg_version[0] < 3:
-            from psycopg2.extras import DateRange
-        else:
-            from psycopg.types.range import Range as DateRange
-
         # Create exclusion constraint.
         self.assertNotIn(
             constraint.name, self.get_constraints(HotelReservation._meta.db_table)

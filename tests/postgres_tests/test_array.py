@@ -36,7 +36,6 @@ from .models import (
 )
 
 try:
-
     from django.contrib.postgres.aggregates import ArrayAgg
     from django.contrib.postgres.expressions import ArraySubquery
     from django.contrib.postgres.fields import ArrayField
@@ -46,6 +45,7 @@ try:
         SplitArrayField,
         SplitArrayWidget,
     )
+    from django.db.backends.postgresql.psycopg_any import NumericRange
 except ImportError:
     pass
 
@@ -160,11 +160,6 @@ class TestSaveLoad(PostgreSQLTestCase):
         self.assertEqual(instance.field, loaded.field)
 
     def test_other_array_types(self):
-        if connection.psycopg_version[0] >= 3:
-            from psycopg.types.range import Range as NumericRange
-        else:
-            from psycopg2.extras import NumericRange
-
         instance = OtherTypesArrayModel(
             ips=["192.168.0.1", "::1"],
             uuids=[uuid.uuid4()],

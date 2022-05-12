@@ -11,9 +11,9 @@ from django.test import SimpleTestCase
 from django.utils.module_loading import import_string
 
 try:
-    from psycopg import errors as psycopg_errors
+    from django.db.backends.postgresql.psycopg_any import errors  # NOQA
 except ImportError:
-    from psycopg2 import errors as psycopg_errors
+    pass
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -71,15 +71,13 @@ class DatabaseCreationTests(SimpleTestCase):
             self.check_sql_table_creation_suffix(settings, None)
 
     def _execute_raise_database_already_exists(self, cursor, parameters, keepdb=False):
-        error = psycopg_errors.DuplicateDatabase(
+        error = errors.DuplicateDatabase(
             "database %s already exists" % parameters["dbname"]
         )
         raise DatabaseError() from error
 
     def _execute_raise_permission_denied(self, cursor, parameters, keepdb=False):
-        error = psycopg_errors.InsufficientPrivilege(
-            "permission denied to create database"
-        )
+        error = errors.InsufficientPrivilege("permission denied to create database")
         raise DatabaseError() from error
 
     def patch_test_db_creation(self, execute_create_test_db):

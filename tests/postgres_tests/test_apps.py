@@ -1,12 +1,5 @@
-from decimal import Decimal
 import unittest
-
-from django.db import connection
-from django.db.backends.signals import connection_created
-from django.db.migrations.writer import MigrationWriter
-from django.test.utils import modify_settings
-
-from . import PostgreSQLTestCase
+from decimal import Decimal
 
 from django.contrib.postgres.fields import (
     DateRangeField,
@@ -14,18 +7,18 @@ from django.contrib.postgres.fields import (
     DecimalRangeField,
     IntegerRangeField,
 )
+from django.db import connection
+from django.db.backends.signals import connection_created
+from django.db.migrations.writer import MigrationWriter
+from django.test.utils import modify_settings
 
-ranges2 = None
-try:
-    from psycopg2 import extras as ranges2
-except ImportError:
-    pass
+from . import PostgreSQLTestCase
 
-ranges3 = None
+ranges2 = ranges3 = None
 try:
     from psycopg.types import range as ranges3
 except ImportError:
-    pass
+    from psycopg2 import extras as ranges2
 
 
 class PostgresConfigTests(PostgreSQLTestCase):
