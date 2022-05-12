@@ -3,7 +3,6 @@ import unittest
 from io import StringIO
 from unittest import mock
 
-from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import (
     DEFAULT_DB_ALIAS,
@@ -14,7 +13,6 @@ from django.db import (
 )
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.test import TestCase, override_settings
-from django.utils.module_loading import import_string
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL tests")
@@ -166,7 +164,7 @@ class Tests(TestCase):
         settings["NAME"] = None
         settings["OPTIONS"] = {"service": "django_test"}
         params = DatabaseWrapper(settings).get_connection_params()
-        self.assertEqual(params["database"], "postgres")
+        self.assertEqual(params["dbname"], "postgres")
         self.assertNotIn("service", params)
 
     def test_connect_and_rollback(self):
