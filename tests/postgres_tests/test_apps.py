@@ -10,9 +10,8 @@ from django.contrib.postgres.fields import (
 from django.db import connection
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
+from django.test import TestCase
 from django.test.utils import modify_settings
-
-from . import PostgreSQLTestCase
 
 ranges2 = ranges3 = None
 try:
@@ -21,7 +20,8 @@ except ImportError:
     from psycopg2 import extras as ranges2
 
 
-class PostgresConfigTests(PostgreSQLTestCase):
+@unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL specific tests")
+class PostgresConfigTests(TestCase):
     def test_register_type_handlers_connection(self):
         from django.contrib.postgres.signals import register_type_handlers
 

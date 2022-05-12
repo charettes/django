@@ -7,11 +7,15 @@ from django.test import SimpleTestCase, TestCase, modify_settings
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL specific tests")
+# To properly register type handlers
+@modify_settings(INSTALLED_APPS={"append": "django.contrib.postgres"})
 class PostgreSQLSimpleTestCase(SimpleTestCase):
     pass
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL specific tests")
+# To properly register type handlers
+@modify_settings(INSTALLED_APPS={"append": "django.contrib.postgres"})
 class PostgreSQLTestCase(TestCase):
     pass
 
