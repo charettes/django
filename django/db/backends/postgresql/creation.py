@@ -1,6 +1,6 @@
 import sys
 
-from psycopg2 import errorcodes
+from psycopg import errors
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.creation import BaseDatabaseCreation
@@ -46,7 +46,8 @@ class DatabaseCreation(BaseDatabaseCreation):
                 return
             super()._execute_create_test_db(cursor, parameters, keepdb)
         except Exception as e:
-            if getattr(e.__cause__, "pgcode", "") != errorcodes.DUPLICATE_DATABASE:
+            sqlstate = getattr(e.__cause__, "sqlstate", None)
+            if sqlstate != errors.DuplicateDatabase.sqlstate:
                 # All errors except "database already exists" cancel tests.
                 self.log("Got an error creating the test database: %s" % e)
                 sys.exit(2)
