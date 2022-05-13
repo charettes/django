@@ -1,27 +1,17 @@
 import datetime
 import json
 
-# Import modules ranges2 and ranges3 from psycopg2 and > 2 where to look up
-# Range objects. Don't crash on import if not found: they won't be used.
-try:
-    from psycopg.types import range as ranges3
-except ImportError:
-    ranges3 = None
-
-try:
-    from psycopg2 import extras as ranges2
-except ImportError:
-    ranges2 = None
-
 from django.contrib.postgres import forms, lookups
-from django.db import connection, models
+from django.db import models
+from django.db.backends.postgresql.psycopg_any import (
+    DateRange,
+    DateTimeTZRange,
+    NumericRange,
+    Range,
+)
 from django.db.models.lookups import PostgresOperatorLookup
 
 from .utils import AttributeSetter
-
-RANGE_BASES = ((ranges3.Range,) if ranges3 else ()) + (
-    (ranges2.Range,) if ranges2 else ()
-)
 
 __all__ = [
     "RangeField",
@@ -98,7 +88,7 @@ class RangeField(models.Field):
     def get_prep_value(self, value):
         if value is None:
             return None
-        elif isinstance(value, RANGE_BASES):
+        elif isinstance(value, Range):
             return value
         elif isinstance(value, (list, tuple)):
             return self.range_type(value[0], value[1])
@@ -179,14 +169,8 @@ class ContinuousRangeField(RangeField):
 
 class IntegerRangeField(RangeField):
     base_field = models.IntegerField
+    range_type = NumericRange
     form_field = forms.IntegerRangeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "int4range"
@@ -194,14 +178,8 @@ class IntegerRangeField(RangeField):
 
 class BigIntegerRangeField(RangeField):
     base_field = models.BigIntegerField
+    range_type = NumericRange
     form_field = forms.IntegerRangeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "int8range"
@@ -209,14 +187,8 @@ class BigIntegerRangeField(RangeField):
 
 class DecimalRangeField(ContinuousRangeField):
     base_field = models.DecimalField
+    range_type = NumericRange
     form_field = forms.DecimalRangeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range  # Can cast to any numeric type
-        else:
-            return ranges2.NumericRange
 
     def db_type(self, connection):
         return "numrange"
@@ -224,14 +196,8 @@ class DecimalRangeField(ContinuousRangeField):
 
 class DateTimeRangeField(ContinuousRangeField):
     base_field = models.DateTimeField
+    range_type = DateTimeTZRange
     form_field = forms.DateTimeRangeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.DateTimeTZRange
 
     def db_type(self, connection):
         return "tstzrange"
@@ -239,14 +205,8 @@ class DateTimeRangeField(ContinuousRangeField):
 
 class DateRangeField(RangeField):
     base_field = models.DateField
+    range_type = DateRange
     form_field = forms.DateRangeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.DateRange
 
     def db_type(self, connection):
         return "daterange"
@@ -255,7 +215,7 @@ class DateRangeField(RangeField):
 class RangeContains(lookups.DataContains):
     def as_postgresql(self, compiler, connection):
         sql, params = super().as_postgresql(compiler, connection)
-        if params and not isinstance(params[0], RANGE_BASES):
+        if params and not isinstance(params[0], Range):
             cast_type = self.lhs.field.base_field.cast_db_type(connection)
             sql = sql.replace("%s", "%%s::%s" % cast_type)
         return sql, params

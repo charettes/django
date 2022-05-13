@@ -1,20 +1,7 @@
-try:
-    from psycopg2.extras import DateRange, DateTimeRange, DateTimeTZRange, NumericRange
-except ImportError:
-    RANGE_TYPES = ()
-else:
-    RANGE_TYPES = (DateRange, DateTimeRange, DateTimeTZRange, NumericRange)
-
-try:
-    from psycopg3.types.range import Range
-except ImportError:
-    pass
-else:
-    RANGE_TYPES += (Range,)
-
 from django.apps import AppConfig
 from django.core.signals import setting_changed
 from django.db import connections
+from django.db.backends.postgresql.psycopg_any import RANGE_TYPES
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
 from django.db.models import CharField, OrderBy, TextField
@@ -34,7 +21,7 @@ from .serializers import RangeSerializer
 from .signals import register_type_handlers
 
 
-def uninstall_if_needed(setting, enter, value=None, **kwargs):
+def uninstall_if_needed(setting, value, enter, **kwargs):
     """
     Undo the effects of PostgresConfig.ready() when django.contrib.postgres
     is "uninstalled" by override_settings().

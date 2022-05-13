@@ -3,6 +3,7 @@ try:
     from psycopg.types.range import Range
 
     DateRange = DateTimeRange = DateTimeTZRange = NumericRange = Range
+    RANGE_TYPES = (Range,)
 except ImportError:
     from psycopg2 import errors, sql  # NOQA
     from psycopg2.extras import (  # NOQA
@@ -10,4 +11,7 @@ except ImportError:
         DateTimeRange,
         DateTimeTZRange,
         NumericRange,
+        Range,
     )
+
+    RANGE_TYPES = (DateRange, DateTimeRange, DateTimeTZRange, NumericRange)
