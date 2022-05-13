@@ -292,6 +292,7 @@ class Text(str):
     Note that, because it is a subclass of str, psycopg2 will dump it
     automatically as string, so its use should be transparent.
     """
+
     __slots__ = ()
 
     def __repr__(self):

@@ -259,6 +259,7 @@ class CastRHSMixin:
     """
     A helper to cast explicitly the rhs placeholder to the lhs value, if needed.
     """
+
     def as_postgresql(self, compiler, connection):
         sql, params = self.as_sql(compiler, connection)
         cast_type = self.lhs.field.cast_db_type(connection)
@@ -383,22 +384,22 @@ class IExact(BuiltinLookup):
 
 @Field.register_lookup
 class GreaterThan(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
-    lookup_name = 'gt'
+    lookup_name = "gt"
 
 
 @Field.register_lookup
 class GreaterThanOrEqual(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
-    lookup_name = 'gte'
+    lookup_name = "gte"
 
 
 @Field.register_lookup
 class LessThan(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
-    lookup_name = 'lt'
+    lookup_name = "lt"
 
 
 @Field.register_lookup
 class LessThanOrEqual(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
-    lookup_name = 'lte'
+    lookup_name = "lte"
 
 
 class IntegerFieldFloatRounding:

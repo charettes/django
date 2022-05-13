@@ -14,13 +14,13 @@ except ImportError:
     ranges2 = None
 
 from django.contrib.postgres import forms, lookups
-from django.db import models, connection
+from django.db import connection, models
 from django.db.models.lookups import PostgresOperatorLookup
 
 from .utils import AttributeSetter
 
-RANGE_BASES = (
-    ((ranges3.Range,) if ranges3 else ()) + ((ranges2.Range,) if ranges2 else ())
+RANGE_BASES = ((ranges3.Range,) if ranges3 else ()) + (
+    (ranges2.Range,) if ranges2 else ()
 )
 
 __all__ = [
