@@ -8,16 +8,16 @@ from django.contrib.postgres.fields import (
     IntegerRangeField,
 )
 from django.db import connection
+from django.db.backends.postgresql.psycopg_any import (
+    DateRange,
+    DateTimeRange,
+    DateTimeTZRange,
+    NumericRange,
+)
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
 from django.test import TestCase
 from django.test.utils import modify_settings
-
-ranges2 = ranges3 = None
-try:
-    from psycopg.types import range as ranges3
-except ImportError:
-    from psycopg2 import extras as ranges2
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL specific tests")
@@ -40,21 +40,13 @@ class PostgresConfigTests(TestCase):
         connection.psycopg_version[0] >= 3, "TODO: psycopg3 migrations not implemented"
     )
     def test_register_serializer_for_migrations(self):
-        if connection.psycopg_version[0] < 3:
-            tests = [
-                (ranges2.DateRange(empty=True), DateRangeField),
-                (ranges2.DateTimeRange(empty=True), DateRangeField),
-                (ranges2.DateTimeTZRange(None, None, "[]"), DateTimeRangeField),
-                (
-                    ranges2.NumericRange(Decimal("1.0"), Decimal("5.0"), "()"),
-                    DecimalRangeField,
-                ),
-                (ranges2.NumericRange(1, 10), IntegerRangeField),
-            ]
-        else:
-            tests = [
-                (ranges3.Range(1, 10), IntegerRangeField),
-            ]
+        tests = (
+            (DateRange(empty=True), DateRangeField),
+            (DateTimeRange(empty=True), DateRangeField),
+            (DateTimeTZRange(None, None, "[]"), DateTimeRangeField),
+            (NumericRange(Decimal("1.0"), Decimal("5.0"), "()"), DecimalRangeField),
+            (NumericRange(1, 10), IntegerRangeField),
+        )
 
         def assertNotSerializable():
             for default, test_field in tests:

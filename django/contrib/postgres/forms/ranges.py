@@ -1,16 +1,10 @@
-try:
-    from psycopg2 import extras as ranges2
-except ImportError:
-    ranges2 = None
-
-try:
-    from psycopg.types import range as ranges3
-except ImportError:
-    ranges3 = None
-
 from django import forms
 from django.core import exceptions
-from django.db import connection
+from django.db.backends.postgresql.psycopg_any import (
+    DateRange,
+    DateTimeTZRange,
+    NumericRange,
+)
 from django.forms.widgets import HiddenInput, MultiWidget
 from django.utils.translation import gettext_lazy as _
 
@@ -104,46 +98,22 @@ class BaseRangeField(forms.MultiValueField):
 class IntegerRangeField(BaseRangeField):
     default_error_messages = {"invalid": _("Enter two whole numbers.")}
     base_field = forms.IntegerField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.NumericRange
+    range_type = NumericRange
 
 
 class DecimalRangeField(BaseRangeField):
     default_error_messages = {"invalid": _("Enter two numbers.")}
     base_field = forms.DecimalField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.NumericRange
+    range_type = NumericRange
 
 
 class DateTimeRangeField(BaseRangeField):
     default_error_messages = {"invalid": _("Enter two valid date/times.")}
     base_field = forms.DateTimeField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.DateTimeTZRange
+    range_type = DateTimeTZRange
 
 
 class DateRangeField(BaseRangeField):
     default_error_messages = {"invalid": _("Enter two valid dates.")}
     base_field = forms.DateField
-
-    @property
-    def range_type(self):
-        if connection.psycopg_version[0] >= 3:
-            return ranges3.Range
-        else:
-            return ranges2.DateRange
+    range_type = DateRange
