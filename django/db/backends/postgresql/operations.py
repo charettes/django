@@ -279,7 +279,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             return ["DISTINCT"], []
 
     def last_executed_query(self, cursor, sql, params):
-        return compose(sql, params).as_string(cursor)
+        return compose(sql, params).as_string(cursor.connection)
 
     def return_insert_columns(self, fields):
         if not fields:

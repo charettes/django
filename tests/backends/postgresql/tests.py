@@ -319,14 +319,15 @@ class Tests(TestCase):
                     )
 
     def test_correct_extraction_psycopg2_version(self):
-        if connection.is_psycopg3:
-            raise unittest.SkipTest("psycopg2 test")
-        from django.db.backends.postgresql.base import psycopg2_version
+        import_name = (
+            "psycopg.__version__" if connection.is_psycopg3 else "psycopg2.__version__"
+        )
+        from django.db.backends.postgresql.base import psycopg_version
 
-        with mock.patch("psycopg2.__version__", "4.2.1 (dt dec pq3 ext lo64)"):
-            self.assertEqual(psycopg2_version(), (4, 2, 1))
-        with mock.patch("psycopg2.__version__", "4.2b0.dev1 (dt dec pq3 ext lo64)"):
-            self.assertEqual(psycopg2_version(), (4, 2))
+        with mock.patch(import_name, "4.2.1 (dt dec pq3 ext lo64)"):
+            self.assertEqual(psycopg_version(), (4, 2, 1))
+        with mock.patch(import_name, "4.2b0.dev1 (dt dec pq3 ext lo64)"):
+            self.assertEqual(psycopg_version(), (4, 2))
 
     @override_settings(DEBUG=True)
     def test_copy_cursors(self):

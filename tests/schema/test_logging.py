@@ -6,8 +6,7 @@ from django.test import TestCase
 
 class SchemaLoggerTests(TestCase):
     @skipIf(
-        connection.vendor == "postgresql" and connection.is_psycopg3,
-        reason="psycopg3 will merge on the client",
+        connection.vendor == "postgresql", reason="postgresql will merge on the client"
     )
     def test_extra_args(self):
         editor = connection.schema_editor(collect_sql=True)
@@ -23,10 +22,9 @@ class SchemaLoggerTests(TestCase):
         )
 
     @skipUnless(
-        connection.vendor == "postgresql" and connection.is_psycopg3,
-        reason="psycopg 3+ test",
+        connection.vendor == "postgresql", reason="postgres will merge on the client"
     )
-    def test_extra_args_psycopg3(self):
+    def test_extra_args_psycopg(self):
         editor = connection.schema_editor(collect_sql=True)
         sql = "SELECT * FROM foo WHERE id in (%s, %s)"
         params = [42, 1337]

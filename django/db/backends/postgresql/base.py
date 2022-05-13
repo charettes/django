@@ -449,12 +449,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return CursorDebugWrapper(cursor, self)
 
 
-class CursorDebugWrapper(BaseCursorDebugWrapper):
-    def copy(self, statement):
-        with self.debug_sql(statement):
-            return self.cursor.copy(statement)
-
-
 if PSYCOPG_VERSION[0] >= 3:
 
     class BaseTzLoader(TimestamptzLoader):
@@ -510,5 +504,19 @@ if PSYCOPG_VERSION[0] >= 3:
             self.execute(stmt)
             return args
 
+    class CursorDebugWrapper(BaseCursorDebugWrapper):
+        def copy(self, statement):
+            with self.debug_sql(statement):
+                return self.cursor.copy(statement)
+
 else:
     Cursor = psycopg2.extensions.cursor
+
+    class CursorDebugWrapper(BaseCursorDebugWrapper):
+        def copy_expert(self, sql, file, *args):
+            with self.debug_sql(sql):
+                return self.cursor.copy_expert(sql, file, *args)
+
+        def copy_to(self, file, table, *args, **kwargs):
+            with self.debug_sql(sql="COPY %s TO STDOUT" % table):
+                return self.cursor.copy_to(file, table, *args, **kwargs)
