@@ -48,7 +48,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if params is None:
             return super().execute(sql, params)
 
-        sql = compose(sql, params).as_string(None)
+        sql = compose(sql, params).as_string(self.connection.connection)
 
         # Don't let the superclass touch anything.
         return super().execute(sql, None)

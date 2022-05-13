@@ -223,7 +223,7 @@ class Tests(TestCase):
         The transaction level can be configured with
         DATABASES ['OPTIONS']['isolation_level'].
         """
-        if connection.psycopg_version[0] > 2:
+        if connection.is_psycopg3:
             raise unittest.SkipTest("Requires psycopg2")
         from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE as serializable
 
@@ -248,7 +248,7 @@ class Tests(TestCase):
         The transaction level can be configured with
         DATABASES ['OPTIONS']['isolation_level'].
         """
-        if connection.psycopg_version[0] < 3:
+        if not connection.is_psycopg3:
             raise unittest.SkipTest("Requires psycopg3")
         import psycopg
 
@@ -318,8 +318,9 @@ class Tests(TestCase):
                         "::citext", do.lookup_cast(lookup, internal_type=field_type)
                     )
 
-    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
     def test_correct_extraction_psycopg2_version(self):
+        if connection.is_psycopg3:
+            raise unittest.SkipTest("psycopg2 test")
         from django.db.backends.postgresql.base import psycopg2_version
 
         with mock.patch("psycopg2.__version__", "4.2.1 (dt dec pq3 ext lo64)"):
@@ -327,9 +328,10 @@ class Tests(TestCase):
         with mock.patch("psycopg2.__version__", "4.2b0.dev1 (dt dec pq3 ext lo64)"):
             self.assertEqual(psycopg2_version(), (4, 2))
 
-    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
     @override_settings(DEBUG=True)
     def test_copy_cursors(self):
+        if connection.is_psycopg3:
+            raise unittest.SkipTest("psycopg2 test")
         out = StringIO()
         copy_expert_sql = "COPY django_session TO STDOUT (FORMAT CSV, HEADER)"
         with connection.cursor() as cursor:
@@ -352,9 +354,10 @@ class Tests(TestCase):
             connection.check_database_version_supported()
         self.assertTrue(mocked_get_database_version.called)
 
-    @unittest.skipUnless(connection.psycopg_version[0] >= 3, "psycopg > 2 test")
     @override_settings(DEBUG=True)
     def test_copy_cursors_3(self):
+        if not connection.is_psycopg3:
+            raise unittest.SkipTest("psycopg > 2 test")
         copy_sql = "COPY django_session TO STDOUT (FORMAT CSV, HEADER)"
         with connection.cursor() as cursor:
             with cursor.copy(copy_sql) as copy:

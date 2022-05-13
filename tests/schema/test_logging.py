@@ -6,7 +6,7 @@ from django.test import TestCase
 
 class SchemaLoggerTests(TestCase):
     @skipIf(
-        connection.vendor == "postgresql" and connection.psycopg_version[0] > 2,
+        connection.vendor == "postgresql" and connection.is_psycopg3,
         reason="psycopg3 will merge on the client",
     )
     def test_extra_args(self):
@@ -23,7 +23,7 @@ class SchemaLoggerTests(TestCase):
         )
 
     @skipUnless(
-        connection.vendor == "postgresql" and connection.psycopg_version[0] > 2,
+        connection.vendor == "postgresql" and connection.is_psycopg3,
         reason="psycopg 3+ test",
     )
     def test_extra_args_psycopg3(self):

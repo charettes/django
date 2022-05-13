@@ -106,10 +106,6 @@ class RangeField(models.Field):
             value = self.range_type(value[0], value[1])
         return value
 
-    @property
-    def range_type(self):
-        raise NotImplementedError
-
     def set_attributes_from_name(self, name):
         super().set_attributes_from_name(name)
         self.base_field.set_attributes_from_name(name)

@@ -18,23 +18,16 @@ from django.db.backends.utils import CursorDebugWrapper as BaseCursorDebugWrappe
 from django.db.utils import Text
 from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
+from django.utils.safestring import SafeString
 from django.utils.version import get_version_tuple
 
 try:
-    import psycopg as Database
+    try:
+        import psycopg as Database
+    except ImportError:
+        import psycopg2 as Database
 except ImportError as e:
     raise ImproperlyConfigured("Error loading psycopg module: %s" % e)
-
-import psycopg
-from psycopg import sql
-from psycopg.pq import Format, TransactionStatus
-from psycopg.types.datetime import TimestamptzLoader
-from psycopg.types.range import Range, RangeDumper
-from psycopg.types.string import StrDumper, TextLoader
-
-TIMESTAMPTZ_OID = psycopg.adapters.types["timestamptz"].oid
-TSRANGE_OID = psycopg.postgres.types["tsrange"].oid
-TSTZRANGE_OID = psycopg.postgres.types["tstzrange"].oid
 
 
 def psycopg_version():
@@ -51,12 +44,41 @@ if PSYCOPG_VERSION < (2, 8, 4):
         % Database.__version__
     )
 
+if PSYCOPG_VERSION[0] >= 3:
+    import psycopg
+    from psycopg import sql
+    from psycopg.pq import Format
+    from psycopg.types.datetime import TimestamptzLoader
+    from psycopg.types.range import Range, RangeDumper
+    from psycopg.types.string import StrDumper, TextLoader
+
+    TIMESTAMPTZ_OID = psycopg.adapters.types["timestamptz"].oid
+    TSRANGE_OID = psycopg.postgres.types["tsrange"].oid
+    TSTZRANGE_OID = psycopg.postgres.types["tstzrange"].oid
+else:
+    import psycopg2.extensions
+    import psycopg2.extras
+
+    psycopg2.extensions.register_adapter(SafeString, psycopg2.extensions.QuotedString)
+    psycopg2.extras.register_uuid()
+
+    # Register support for inet[] manually so we don't have to handle the Inet()
+    # object on load all the time.
+    INETARRAY_OID = 1041
+    INETARRAY = psycopg2.extensions.new_array_type(
+        (INETARRAY_OID,),
+        "INETARRAY",
+        psycopg2.extensions.UNICODE,
+    )
+    psycopg2.extensions.register_type(INETARRAY)
+
 # Some of these import psycopg, so import them after checking if it's installed.
 from .client import DatabaseClient  # NOQA isort:skip
 from .creation import DatabaseCreation  # NOQA isort:skip
 from .features import DatabaseFeatures  # NOQA isort:skip
 from .introspection import DatabaseIntrospection  # NOQA isort:skip
 from .operations import DatabaseOperations  # NOQA isort:skip
+from .psycopg_any import IsolationLevel  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor  # NOQA isort:skip
 
 
@@ -187,7 +209,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 )
             )
 
-        conn_params = {}
+        conn_params = {"client_encoding22": "UTF8"}
         if settings_dict["NAME"]:
             conn_params = {
                 "dbname": settings_dict["NAME"],
@@ -213,8 +235,17 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        ctx = self.get_adapters_template()
-        connection = Database.connect(**conn_params, context=ctx)
+        if self.is_psycopg3:
+            ctx = self.get_adapters_template()
+            connection = Database.connect(**conn_params, context=ctx)
+        else:
+            connection = Database.connect(**conn_params)
+            # Register dummy loads() to avoid a round trip from psycopg2's decode
+            # to json.dumps() to json.loads(), when using a custom decoder in
+            # JSONField.
+            psycopg2.extras.register_default_jsonb(
+                conn_or_curs=connection, loads=lambda x: x
+            )
 
         # self.isolation_level must be set:
         # - after connecting to the database in order to obtain the database's
@@ -225,10 +256,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         try:
             isolevel = options["isolation_level"]
         except KeyError:
-            self.isolation_level = None
+            self.isolation_level = IsolationLevel.READ_COMMITTED
         else:
             try:
-                self.isolation_level = Database.IsolationLevel(isolevel)
+                self.isolation_level = IsolationLevel(isolevel)
             except ValueError:
                 raise ImproperlyConfigured(
                     "bad isolation_level: %s. Choose one of the "
@@ -236,7 +267,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 )
             connection.isolation_level = self.isolation_level
 
-        # Use a cursor implementing callproc
         connection.cursor_factory = Cursor
 
         return connection
@@ -245,11 +275,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if self.connection is None:
             return False
 
-        conn = self.connection
         conn_timezone_name = self.connection.info.parameter_status("TimeZone")
         timezone_name = self.timezone_name
         if timezone_name and conn_timezone_name != timezone_name:
-            conn.execute(self.ops.set_time_zone_sql(), [timezone_name])
+            with self.connection.cursor() as cursor:
+                cursor.execute(self.ops.set_time_zone_sql(), [timezone_name])
             return True
         return False
 
@@ -290,7 +320,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         timezone_changed = self.ensure_timezone()
         if timezone_changed:
             # Commit after setting the time zone (see #17062)
-            if self.connection.info.transaction_status == TransactionStatus.INTRANS:
+            if not self.get_autocommit():
                 self.connection.commit()
 
     @async_unsafe
@@ -304,12 +334,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         else:
             cursor = self.connection.cursor()
 
-        # Register the cursor timezone only if the connection disagrees, so that
-        # we avoid to copy the adapters map.
-        tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
-        if self.timezone != tzloader.timezone:
-            register_tzloader(self.timezone, cursor)
+        if self.is_psycopg3:
+            # Register the cursor timezone only if the connection disagrees, so that
+            # we avoid to copy the adapters map.
+            tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
+            if self.timezone != tzloader.timezone:
+                register_tzloader(self.timezone, cursor)
+        else:
+            cursor.tzinfo_factory = self.tzinfo_factory if settings.USE_TZ else None
         return cursor
+
+    def tzinfo_factory(self, offset):
+        return self.timezone
 
     @async_unsafe
     def chunked_cursor(self):
@@ -400,9 +436,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             else:
                 raise
 
-    @property
-    def psycopg_version(self):
-        return PSYCOPG_VERSION
+    @cached_property
+    def is_psycopg3(self):
+        return PSYCOPG_VERSION[0] >= 3
 
     @cached_property
     def pg_version(self):
@@ -413,64 +449,66 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return CursorDebugWrapper(cursor, self)
 
 
-class BaseTzLoader(TimestamptzLoader):
-    """
-    Load a Postgres timestamptz using the a specific timezone.
-
-    The timezone can be None too, in which case it will be chopped.
-    """
-
-    timezone = None
-
-    def load(self, data):
-        res = super().load(data)
-        return res.replace(tzinfo=self.timezone)
-
-
-def register_tzloader(tz, context):
-    class SpecificTzLoader(BaseTzLoader):
-        timezone = tz
-
-    context.adapters.register_loader("timestamptz", SpecificTzLoader)
-
-
-class DjangoRangeDumper(RangeDumper):
-    """
-    A Range dumper customised for Django.
-    """
-
-    def upgrade(self, obj, format):
-        # Dump ranges containing naive datetimes as tstzrange, because Django
-        # doesn't use tz-aware ones.
-        dumper = super().upgrade(obj, format)
-        if dumper is not self and dumper.oid == TSRANGE_OID:
-            dumper.oid = TSTZRANGE_OID
-        return dumper
-
-
-class Cursor(Database.Cursor):
-    """
-    A subclass of psycopg cursor implementing callproc.
-    """
-
-    def callproc(self, name, args=None):
-        if not isinstance(name, sql.Identifier):
-            name = sql.Identifier(name)
-
-        qparts = [sql.SQL("select * from "), name, sql.SQL("(")]
-        if args:
-            for item in args:
-                qparts.append(sql.Literal(item))
-                qparts.append(sql.SQL(","))
-            del qparts[-1]
-
-        qparts.append(sql.SQL(")"))
-        stmt = sql.Composed(qparts)
-        self.execute(stmt)
-        return args
-
-
 class CursorDebugWrapper(BaseCursorDebugWrapper):
     def copy(self, statement):
         with self.debug_sql(statement):
             return self.cursor.copy(statement)
+
+
+if PSYCOPG_VERSION[0] >= 3:
+
+    class BaseTzLoader(TimestamptzLoader):
+        """
+        Load a Postgres timestamptz using the a specific timezone.
+
+        The timezone can be None too, in which case it will be chopped.
+        """
+
+        timezone = None
+
+        def load(self, data):
+            res = super().load(data)
+            return res.replace(tzinfo=self.timezone)
+
+    def register_tzloader(tz, context):
+        class SpecificTzLoader(BaseTzLoader):
+            timezone = tz
+
+        context.adapters.register_loader("timestamptz", SpecificTzLoader)
+
+    class DjangoRangeDumper(RangeDumper):
+        """
+        A Range dumper customised for Django.
+        """
+
+        def upgrade(self, obj, format):
+            # Dump ranges containing naive datetimes as tstzrange, because Django
+            # doesn't use tz-aware ones.
+            dumper = super().upgrade(obj, format)
+            if dumper is not self and dumper.oid == TSRANGE_OID:
+                dumper.oid = TSTZRANGE_OID
+            return dumper
+
+    class Cursor(Database.Cursor):
+        """
+        A subclass of psycopg cursor implementing callproc.
+        """
+
+        def callproc(self, name, args=None):
+            if not isinstance(name, sql.Identifier):
+                name = sql.Identifier(name)
+
+            qparts = [sql.SQL("select * from "), name, sql.SQL("(")]
+            if args:
+                for item in args:
+                    qparts.append(sql.Literal(item))
+                    qparts.append(sql.SQL(","))
+                del qparts[-1]
+
+            qparts.append(sql.SQL(")"))
+            stmt = sql.Composed(qparts)
+            self.execute(stmt)
+            return args
+
+else:
+    Cursor = psycopg2.extensions.cursor

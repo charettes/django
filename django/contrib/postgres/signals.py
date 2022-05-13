@@ -34,10 +34,10 @@ def register_type_handlers(connection, **kwargs):
     if connection.vendor != "postgresql" or connection.alias == NO_DB_ALIAS:
         return
 
-    if connection.psycopg_version[0] < 3:
-        register_type_handlers_psycopg2(connection, **kwargs)
-    else:
+    if connection.is_psycopg3:
         register_type_handlers_psycopg3(connection, **kwargs)
+    else:
+        register_type_handlers_psycopg2(connection, **kwargs)
 
 
 def register_type_handlers_psycopg2(connection, **kwargs):

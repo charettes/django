@@ -1,4 +1,3 @@
-import ipaddress
 import json
 from collections.abc import Mapping, Sequence
 from functools import lru_cache, partial
@@ -7,7 +6,7 @@ from psycopg2.extras import Json as Jsonb
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
-from django.db.backends.postgresql.psycopg_any import sql
+from django.db.backends.postgresql.psycopg_any import Inet, sql
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
 
@@ -314,7 +313,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def adapt_ipaddressfield_value(self, value):
         if value:
-            return ipaddress.ip_network(value)
+            return Inet(value)
         return None
 
     def adapt_json_value(self, value, encoder):

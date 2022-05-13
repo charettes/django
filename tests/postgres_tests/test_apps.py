@@ -2,7 +2,6 @@ import unittest
 from decimal import Decimal
 
 from django.db import connection
-from django.db.backends.postgresql.base import PSYCOPG_VERSION
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
 from django.test import TestCase
@@ -61,7 +60,7 @@ class PostgresConfigTests(TestCase):
 
         assertNotSerializable()
         import_name = (
-            "psycopg2.extras" if PSYCOPG_VERSION[0] < 3 else "psycopg.types.range"
+            "psycopg.types.range" if connection.is_psycopg3 else "psycopg2.extras"
         )
         with self.modify_settings(INSTALLED_APPS={"append": "django.contrib.postgres"}):
             for default, test_field in tests:
