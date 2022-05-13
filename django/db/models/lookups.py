@@ -589,8 +589,10 @@ class IsNull(BuiltinLookup):
 
     def as_postgresql(self, compiler, connection):
         sql, params = self.as_sql(compiler, connection)
-        cast_type = self.lhs.field.cast_db_type(connection)
-        sql = sql.replace("%s", "%%s::%s" % cast_type)
+        # TODO: What is the proper check here to be able to cast everything?
+        if hasattr(self.lhs.field, "cast_db_type"):
+            cast_type = self.lhs.field.cast_db_type(connection)
+            sql = sql.replace("%s", "%%s::%s" % cast_type)
         return sql, params
 
 
