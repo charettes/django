@@ -8,6 +8,7 @@ from django.contrib.postgres.fields import (
     IntegerRangeField,
 )
 from django.db import connection
+from django.db.backends.postgresql.base import PSYCOPG_VERSION
 from django.db.backends.postgresql.psycopg_any import (
     DateRange,
     DateTimeRange,
@@ -36,9 +37,6 @@ class PostgresConfigTests(TestCase):
             register_type_handlers, connection_created._live_receivers(None)
         )
 
-    @unittest.skipIf(
-        connection.psycopg_version[0] >= 3, "TODO: psycopg3 migrations not implemented"
-    )
     def test_register_serializer_for_migrations(self):
         tests = (
             (DateRange(empty=True), DateRangeField),
@@ -58,6 +56,9 @@ class PostgresConfigTests(TestCase):
                         MigrationWriter.serialize(field)
 
         assertNotSerializable()
+        import_name = (
+            "psycopg2.extras" if PSYCOPG_VERSION[0] < 3 else "psycopg.types.range"
+        )
         with self.modify_settings(INSTALLED_APPS={"append": "django.contrib.postgres"}):
             for default, test_field in tests:
                 with self.subTest(default=default):
@@ -67,11 +68,11 @@ class PostgresConfigTests(TestCase):
                         imports,
                         {
                             "import django.contrib.postgres.fields.ranges",
-                            "import psycopg2.extras",
+                            f"import {import_name}",
                         },
                     )
                     self.assertIn(
-                        "%s.%s(default=psycopg2.extras.%r)"
+                        f"%s.%s(default={import_name}.%r)"
                         % (
                             field.__module__,
                             field.__class__.__name__,
