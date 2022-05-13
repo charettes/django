@@ -53,6 +53,11 @@ class SearchQueryField(Field):
         return "tsquery"
 
 
+class _Float4Field(Field):
+    def db_type(self, connection):
+        return "float4"
+
+
 class SearchConfig(Expression):
     def __init__(self, config):
         super().__init__()
@@ -262,6 +267,8 @@ class SearchRank(Func):
         normalization=None,
         cover_density=False,
     ):
+        from .fields.array import ArrayField
+
         if not hasattr(vector, "resolve_expression"):
             vector = SearchVector(vector)
         if not hasattr(query, "resolve_expression"):
@@ -270,6 +277,7 @@ class SearchRank(Func):
         if weights is not None:
             if not hasattr(weights, "resolve_expression"):
                 weights = Value(weights)
+            weights = Cast(weights, ArrayField(_Float4Field()))
             expressions = (weights,) + expressions
         if normalization is not None:
             if not hasattr(normalization, "resolve_expression"):
