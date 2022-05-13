@@ -587,6 +587,12 @@ class IsNull(BuiltinLookup):
         else:
             return "%s IS NOT NULL" % sql, params
 
+    def as_postgresql(self, compiler, connection):
+        sql, params = self.as_sql(compiler, connection)
+        cast_type = self.lhs.field.cast_db_type(connection)
+        sql = sql.replace("%s", "%%s::%s" % cast_type)
+        return sql, params
+
 
 @Field.register_lookup
 class Regex(BuiltinLookup):
