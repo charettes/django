@@ -263,7 +263,7 @@ class CastRHSMixin:
     def as_postgresql(self, compiler, connection):
         sql, params = self.as_sql(compiler, connection)
         cast_type = self.lhs.field.cast_db_type(connection)
-        if cast_type.endswith("]"):
+        if cast_type and cast_type.endswith("]"):
             sql = sql.replace("%s", "%%s::%s" % cast_type)
         return sql, params
 
