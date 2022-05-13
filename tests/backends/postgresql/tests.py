@@ -218,12 +218,13 @@ class Tests(TestCase):
         finally:
             new_connection.close()
 
-    @unittest.skipUnless(connection.psycopg_version[0] < 3, "psycopg2 test")
     def test_connect_isolation_level_psycopg2(self):
         """
         The transaction level can be configured with
         DATABASES ['OPTIONS']['isolation_level'].
         """
+        if connection.psycopg_version[0] > 2:
+            raise unittest.SkipTest("Requires psycopg2")
         from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE as serializable
 
         # Since this is a django.test.TestCase, a transaction is in progress
@@ -242,12 +243,13 @@ class Tests(TestCase):
         finally:
             new_connection.close()
 
-    @unittest.skipUnless(connection.psycopg_version[0] >= 3, "psycopg >= 3 test")
     def test_connect_isolation_level(self):
         """
         The transaction level can be configured with
         DATABASES ['OPTIONS']['isolation_level'].
         """
+        if connection.psycopg_version[0] < 3:
+            raise unittest.SkipTest("Requires psycopg3")
         import psycopg
 
         self.assertEqual(connection.connection.isolation_level, None)

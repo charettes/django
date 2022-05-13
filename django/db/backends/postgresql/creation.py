@@ -50,7 +50,7 @@ class DatabaseCreation(BaseDatabaseCreation):
                 # All errors except "database already exists" cancel tests.
                 self.log("Got an error creating the test database: %s" % e)
                 sys.exit(2)
-            if not keepdb:
+            elif not keepdb:
                 # If the database should be kept, ignore "database already
                 # exists".
                 raise

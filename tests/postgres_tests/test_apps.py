@@ -1,24 +1,28 @@
 import unittest
 from decimal import Decimal
 
-from django.contrib.postgres.fields import (
-    DateRangeField,
-    DateTimeRangeField,
-    DecimalRangeField,
-    IntegerRangeField,
-)
 from django.db import connection
 from django.db.backends.postgresql.base import PSYCOPG_VERSION
-from django.db.backends.postgresql.psycopg_any import (
-    DateRange,
-    DateTimeRange,
-    DateTimeTZRange,
-    NumericRange,
-)
 from django.db.backends.signals import connection_created
 from django.db.migrations.writer import MigrationWriter
 from django.test import TestCase
 from django.test.utils import modify_settings
+
+try:
+    from django.contrib.postgres.fields import (
+        DateRangeField,
+        DateTimeRangeField,
+        DecimalRangeField,
+        IntegerRangeField,
+    )
+    from django.db.backends.postgresql.psycopg_any import (
+        DateRange,
+        DateTimeRange,
+        DateTimeTZRange,
+        NumericRange,
+    )
+except ImportError:
+    pass
 
 
 @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL specific tests")
