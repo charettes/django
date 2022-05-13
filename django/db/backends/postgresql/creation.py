@@ -2,12 +2,8 @@ import sys
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.creation import BaseDatabaseCreation
+from django.db.backends.postgresql.psycopg_any import errors
 from django.db.backends.utils import strip_quotes
-
-try:
-    from psycopg import errors
-except ImportError:
-    from psycopg2 import errors
 
 
 class DatabaseCreation(BaseDatabaseCreation):

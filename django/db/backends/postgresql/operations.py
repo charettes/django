@@ -7,13 +7,9 @@ from psycopg2.extras import Json as Jsonb
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
+from django.db.backends.postgresql.psycopg_any import sql
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
-
-try:
-    from psycopg.sql import SQL, Literal
-except ImportError:
-    from psycopg2.sql import SQL, Literal
 
 
 @lru_cache
@@ -372,22 +368,22 @@ class DatabaseOperations(BaseDatabaseOperations):
 def compose(query, params):
     """Compose a query and argument on the client."""
     if params is None:
-        return SQL(query)
+        return sql.SQL(query)
 
     # Convert placeholders from %s to {} and merge parameters with escaping
     query = str(query).replace("{", "{{").replace("}", "}}")
 
     if isinstance(params, Sequence):
         query = query.replace("%s", "{}").replace("%%", "%")
-        params = (Literal(p) for p in params)
-        return SQL(query).format(*params)
+        params = (sql.Literal(p) for p in params)
+        return sql.SQL(query).format(*params)
 
     elif isinstance(params, Mapping):
         new_params = {}
         for name, param in params.items():
-            new_params[name] = Literal(param)
+            new_params[name] = sql.Literal(param)
             query = query.replace("%%(%s)s" % name, "{%s}" % name)
-        return SQL(query).format(**new_params)
+        return sql.SQL(query).format(**new_params)
     else:
         raise TypeError(
             "query parameters should be a mapping or a sequence, got %s" % type(params)

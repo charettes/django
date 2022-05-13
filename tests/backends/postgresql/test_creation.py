@@ -9,7 +9,7 @@ from django.db.backends.base.creation import BaseDatabaseCreation
 from django.test import SimpleTestCase
 
 try:
-    from django.db.backends.postgresql.psycopg_any import errors  # NOQA
+    from django.db.backends.postgresql.psycopg_any import errors
 except ImportError:
     pass
 else:

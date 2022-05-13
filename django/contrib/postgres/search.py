@@ -1,3 +1,4 @@
+from django.db.backends.postgresql.psycopg_any import sql
 from django.db.models import (
     CharField,
     Expression,
@@ -16,11 +17,6 @@ def merge_client_side(connection, query, params):
     """
     Merge an sql expression and a sequence of parameters on the client side
     """
-    if connection.psycopg_version[0] > 2:
-        from psycopg import sql
-    else:
-        from psycopg2 import sql
-
     query = sql.SQL(query.replace("{", "{{").replace("}", "}}").replace("%s", "{}"))
     merged = query.format(*map(sql.Literal, params))
     return merged.as_string(connection.cursor().cursor)
@@ -333,7 +329,6 @@ class SearchHeadline(Func):
         options_sql = ""
         options_params = []
         if self.options:
-            # getquoted() returns a quoted bytestring of the adapted value.
             options_params.append(
                 ", ".join(
                     merge_client_side(connection, "%s=%%s" % option, [value])

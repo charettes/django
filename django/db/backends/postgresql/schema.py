@@ -1,13 +1,9 @@
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import IndexColumns
+from django.db.backends.postgresql.psycopg_any import sql
 from django.db.backends.utils import strip_quotes
 
 from .operations import compose
-
-try:
-    import psycopg.sql as psycopg_sql
-except ImportError:
-    import psycopg2.sql as psycopg_sql
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
@@ -68,7 +64,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     def quote_value(self, value):
         if isinstance(value, str):
             value = value.replace("%", "%%")
-        return psycopg_sql.quote(value)
+        return sql.quote(value)
 
     def _field_indexes_sql(self, model, field):
         output = super()._field_indexes_sql(model, field)
