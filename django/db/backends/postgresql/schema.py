@@ -43,7 +43,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_delete_procedure = "DROP FUNCTION %(procedure)s(%(param_types)s)"
 
     def execute(self, sql, params=()):
-        # Merge the query client-side, as posgres won't do it server-side.
+        # Merge the query client-side, as postgres won't do it server-side.
 
         if params is None:
             return super().execute(sql, params)

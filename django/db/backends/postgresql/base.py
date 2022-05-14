@@ -3,11 +3,11 @@ PostgreSQL database backend for Django.
 
 Requires psycopg2 >= 2.8.4 or psycopg3
 """
-
 import asyncio
 import threading
 import warnings
 from contextlib import contextmanager
+from functools import lru_cache
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -107,7 +107,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "IPAddressField": "inet",
         "GenericIPAddressField": "inet",
         "JSONField": "jsonb",
-        "NullBooleanField": "boolean",
         "OneToOneField": "integer",
         "PositiveBigIntegerField": "bigint",
         "PositiveIntegerField": "integer",
@@ -236,7 +235,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     @async_unsafe
     def get_new_connection(self, conn_params):
         if self.is_psycopg3:
-            ctx = self.get_adapters_template()
+            ctx = self.get_adapters_template(settings.USE_TZ)
             connection = Database.connect(**conn_params, context=ctx)
         else:
             connection = Database.connect(**conn_params)
@@ -283,13 +282,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return True
         return False
 
-    def get_adapters_template(self):
-        key = settings.USE_TZ
-        try:
-            return self.ctx_templates[key]
-        except KeyError:
-            pass
-
+    @lru_cache(maxsize=2)
+    def get_adapters_template(self, use_tz):
         # Create at adapters map extending the base one to base connections on
         ctx = psycopg.adapt.AdaptersMap(psycopg.adapters)
 
@@ -311,7 +305,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # This, however, can be overridden by create_cursor.
         register_tzloader(self.timezone, ctx)
 
-        self.ctx_templates[key] = ctx
         return ctx
 
     def init_connection_state(self):

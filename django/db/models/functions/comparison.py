@@ -169,9 +169,7 @@ class JSONObject(Func):
 
         # Enforce str to be text rather than unknown, otherwise they cannot
         # be merged server-side
-        for i, p in enumerate(params):
-            if isinstance(p, str):
-                params[i] = Text(p)
+        params = [Text(p) if isinstance(p, str) else p for p in params]
 
         return sql, params
 

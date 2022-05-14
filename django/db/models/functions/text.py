@@ -133,9 +133,7 @@ class Concat(Func):
         sql, params = super().as_sql(compiler, connection, **extra_context)
 
         # Force text oid instead of unknown for text params
-        for i, p in enumerate(params):
-            if isinstance(p, str):
-                params[i] = Text(p)
+        params = [Text(p) if isinstance(p, str) else p for p in params]
 
         return sql, params
 
