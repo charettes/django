@@ -82,6 +82,32 @@ from .psycopg_any import IsolationLevel  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor  # NOQA isort:skip
 
 
+@lru_cache
+def get_adapters_template(use_tz, timezone):
+    # Create at adapters map extending the base one to base connections on
+    ctx = psycopg.adapt.AdaptersMap(psycopg.adapters)
+
+    # Register a no-op dumper to avoid a round trip from psycopg3's decode
+    # to json.dumps() to json.loads(), when using a custom decoder in
+    # JSONField.
+    ctx.register_loader("jsonb", TextLoader)
+
+    # Don't convert automatically from Postgres network types to Python ipaddress
+    ctx.register_loader("inet", TextLoader)
+    ctx.register_loader("cidr", TextLoader)
+    ctx.register_dumper(Range, DjangoRangeDumper)
+
+    # Dump Text strings using the text oid, where the default unknown oid
+    # doesn't work well (e.g. in variadic functions)
+    ctx.register_dumper(Text, StrDumper)
+
+    # Register a timestamptz loader configured on self.timezone.
+    # This, however, can be overridden by create_cursor.
+    register_tzloader(timezone, ctx)
+
+    return ctx
+
+
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = "postgresql"
     display_name = "PostgreSQL"
@@ -235,7 +261,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     @async_unsafe
     def get_new_connection(self, conn_params):
         if self.is_psycopg3:
-            ctx = self.get_adapters_template(settings.USE_TZ)
+            ctx = get_adapters_template(settings.USE_TZ, self.timezone)
             connection = Database.connect(**conn_params, context=ctx)
         else:
             connection = Database.connect(**conn_params)
@@ -281,31 +307,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 cursor.execute(self.ops.set_time_zone_sql(), [timezone_name])
             return True
         return False
-
-    @lru_cache(maxsize=2)
-    def get_adapters_template(self, use_tz):
-        # Create at adapters map extending the base one to base connections on
-        ctx = psycopg.adapt.AdaptersMap(psycopg.adapters)
-
-        # Register a no-op dumper to avoid a round trip from psycopg3's decode
-        # to json.dumps() to json.loads(), when using a custom decoder in
-        # JSONField.
-        ctx.register_loader("jsonb", TextLoader)
-
-        # Don't convert automatically from Postgres network types to Python ipaddress
-        ctx.register_loader("inet", TextLoader)
-        ctx.register_loader("cidr", TextLoader)
-        ctx.register_dumper(Range, DjangoRangeDumper)
-
-        # Dump Text strings using the text oid, where the default unknown oid
-        # doesn't work well (e.g. in variadic functions)
-        ctx.register_dumper(Text, StrDumper)
-
-        # Register a timestamptz loader configured on self.timezone.
-        # This, however, can be overridden by create_cursor.
-        register_tzloader(self.timezone, ctx)
-
-        return ctx
 
     def init_connection_state(self):
         super().init_connection_state()
