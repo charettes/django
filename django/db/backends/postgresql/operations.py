@@ -360,7 +360,10 @@ class DatabaseOperations(BaseDatabaseOperations):
                 ),
             )
         return super().on_conflict_suffix_sql(
-            fields, on_conflict, update_fields, unique_fields
+            fields,
+            on_conflict,
+            update_fields,
+            unique_fields,
         )
 
 

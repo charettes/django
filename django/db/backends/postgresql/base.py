@@ -466,7 +466,7 @@ if PSYCOPG_VERSION[0] >= 3:
 
     class DjangoRangeDumper(RangeDumper):
         """
-        A Range dumper customised for Django.
+        A Range dumper customized for Django.
         """
 
         def upgrade(self, obj, format):
