@@ -164,6 +164,8 @@ class BaseDatabaseFeatures:
     # Can we roll back DDL in a transaction?
     can_rollback_ddl = False
 
+    schema_editor_uses_clientside_param_binding = False
+
     # Does it support operations requiring references rename in a transaction?
     supports_atomic_references_rename = True
 
