@@ -4,7 +4,7 @@ try:
     from psycopg import IsolationLevel, errors, sql
     from psycopg.types.range import Range
 
-    Inet = ipaddress.ip_network
+    Inet = ipaddress.ip_address
 
     DateRange = DateTimeRange = DateTimeTZRange = NumericRange = Range
     RANGE_TYPES = (Range,)
