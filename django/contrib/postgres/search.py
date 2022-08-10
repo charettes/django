@@ -1,4 +1,4 @@
-from django.db.backends.postgresql.psycopg_any import sql
+from django.db.backends.postgresql.operations import compose
 from django.db.models import (
     CharField,
     Expression,
@@ -11,15 +11,6 @@ from django.db.models import (
 )
 from django.db.models.expressions import CombinedExpression, register_combinable_fields
 from django.db.models.functions import Cast, Coalesce
-
-
-def merge_client_side(connection, query, params):
-    """
-    Merge an sql expression and a sequence of parameters on the client side
-    """
-    query = sql.SQL(query.replace("{", "{{").replace("}", "}}").replace("%s", "{}"))
-    merged = query.format(*map(sql.Literal, params))
-    return merged.as_string(connection.cursor().cursor)
 
 
 class SearchVectorExact(Lookup):
@@ -156,8 +147,8 @@ class SearchVector(SearchVectorCombinable, Func):
 
         # These parameters must be bound on the client side because we may
         # want to create an index on this expression.
-        sql = merge_client_side(connection, sql, config_params + params + extra_params)
-        return sql, []
+        sql = compose(sql, config_params + params + extra_params)
+        return sql.as_string(connection.connection), []
 
 
 class CombinedSearchVector(SearchVectorCombinable, CombinedExpression):
@@ -331,7 +322,7 @@ class SearchHeadline(Func):
         if self.options:
             options_params.append(
                 ", ".join(
-                    merge_client_side(connection, "%s=%%s" % option, [value])
+                    compose(f"{option}=%s", [value]).as_string(connection.connection)
                     for option, value in self.options.items()
                 )
             )

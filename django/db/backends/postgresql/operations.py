@@ -379,14 +379,13 @@ def compose(query, params):
         query = query.replace("%s", "{}").replace("%%", "%")
         params = (sql.Literal(p) for p in params)
         return sql.SQL(query).format(*params)
-
     elif isinstance(params, Mapping):
         new_params = {}
         for name, param in params.items():
             new_params[name] = sql.Literal(param)
-            query = query.replace("%%(%s)s" % name, "{%s}" % name)
+            query = query.replace(f"%({name})s", "{%s}" % name)
         return sql.SQL(query).format(**new_params)
     else:
         raise TypeError(
-            "query parameters should be a mapping or a sequence, got %s" % type(params)
+            f"query parameters should be a mapping or a sequence, got {type(params)}"
         )

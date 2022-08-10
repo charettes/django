@@ -13,8 +13,7 @@ def get_hstore_oids(connection_alias):
 def get_type_oids(connection_alias, type_name):
     with connections[connection_alias].cursor() as cursor:
         cursor.execute(
-            "SELECT t.oid, typarray " "FROM pg_type t " "WHERE typname = %s",
-            (type_name,),
+            "SELECT oid, typarray FROM pg_type WHERE typname = %s", (type_name,)
         )
         oids = []
         array_oids = []

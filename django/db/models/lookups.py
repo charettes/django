@@ -264,7 +264,7 @@ class CastRHSMixin:
         sql, params = self.as_sql(compiler, connection)
         cast_type = self.lhs.field.cast_db_type(connection)
         if cast_type and cast_type.endswith("]"):
-            sql = sql.replace("%s", "%%s::%s" % cast_type)
+            sql = sql.replace("%s", f"%s::{cast_type}")
         return sql, params
 
 

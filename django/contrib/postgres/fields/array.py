@@ -323,7 +323,7 @@ class ArrayInLookup(In):
         # "operator does not exist: integer[] = numeric[]", although it's
         # possible to cast manually numeric[]::integer[].
         sqls, sqls_params = super().batch_process_rhs(compiler, connection, rhs)
-        cast_ph = "%s::" + self.lhs.field.cast_db_type(connection)
+        cast_ph = f"%s::{self.lhs.field.cast_db_type(connection)}"
         sqls = tuple(cast_ph if sql == "%s" else sql for sql in sqls)
         return sqls, sqls_params
 

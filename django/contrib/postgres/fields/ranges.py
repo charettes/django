@@ -213,7 +213,7 @@ class RangeContains(lookups.DataContains):
         sql, params = super().as_postgresql(compiler, connection)
         if params and not isinstance(params[0], Range):
             cast_type = self.lhs.field.base_field.cast_db_type(connection)
-            sql = sql.replace("%s", "%%s::%s" % cast_type)
+            sql = sql.replace("%s", f"%s::{cast_type}")
         return sql, params
 
 
