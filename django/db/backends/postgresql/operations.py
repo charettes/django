@@ -9,6 +9,7 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.backends.postgresql.psycopg_any import Inet, sql
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
+from django.utils.regex_helper import _lazy_re_compile
 
 
 @lru_cache
@@ -59,19 +60,23 @@ class DatabaseOperations(BaseDatabaseOperations):
             )
         return "%s"
 
+    # EXTRACT format cannot be passed in parameters.
+    _extract_format_re = _lazy_re_compile(r"[A-Z_]+")
+
     def date_extract_sql(self, lookup_type, sql, params):
         # https://www.postgresql.org/docs/current/functions-datetime.html#FUNCTIONS-DATETIME-EXTRACT
-        extract_sql = f"EXTRACT(%s FROM {sql})"
-        extract_param = lookup_type
         if lookup_type == "week_day":
             # For consistency across backends, we return Sunday=1, Saturday=7.
-            extract_sql = f"EXTRACT(%s FROM {sql}) + 1"
-            extract_param = "dow"
+            return f"EXTRACT(DOW FROM {sql}) + 1", params
         elif lookup_type == "iso_week_day":
-            extract_param = "isodow"
+            return f"EXTRACT(ISODOW FROM {sql})", params
         elif lookup_type == "iso_year":
-            extract_param = "isoyear"
-        return extract_sql, (extract_param, *params)
+            return f"EXTRACT(ISOYEAR FROM {sql})", params
+
+        lookup_type = lookup_type.upper()
+        if not self._extract_format_re.fullmatch(lookup_type):
+            raise ValueError(f"Invalid loookup type: {lookup_type!r}")
+        return f"EXTRACT({lookup_type} FROM {sql})", params
 
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         sql, params = self._convert_sql_to_tz(sql, params, tzname)
@@ -103,10 +108,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         sql, params = self._convert_sql_to_tz(sql, params, tzname)
         if lookup_type == "second":
             # Truncate fractional seconds.
-            return (
-                f"EXTRACT(%s FROM DATE_TRUNC(%s, {sql}))",
-                ("second", "second", *params),
-            )
+            return (f"EXTRACT(SECOND FROM DATE_TRUNC('second', {sql}))", params)
         return self.date_extract_sql(lookup_type, sql, params)
 
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
@@ -117,10 +119,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     def time_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "second":
             # Truncate fractional seconds.
-            return (
-                f"EXTRACT(%s FROM DATE_TRUNC(%s, {sql}))",
-                ("second", "second", *params),
-            )
+            return (f"EXTRACT(SECOND FROM DATE_TRUNC('second', {sql}))", params)
         return self.date_extract_sql(lookup_type, sql, params)
 
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
