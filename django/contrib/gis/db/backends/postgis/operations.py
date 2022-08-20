@@ -161,7 +161,13 @@ class PostGISOperations(BaseSpatialOperations, DatabaseOperations):
 
     unsupported_functions = set()
 
-    select = "%s::bytea"
+    @cached_property
+    def select(self):
+        if self.connection.is_psycopg3:
+            return "%s"
+        else:
+            return "%s::bytea"
+
     select_extent = None
 
     @cached_property
@@ -407,7 +413,11 @@ class PostGISOperations(BaseSpatialOperations, DatabaseOperations):
         geom_class = expression.output_field.geom_class
 
         def converter(value, expression, connection):
-            return None if value is None else GEOSGeometryBase(read(value), geom_class)
+            return (
+                None
+                if value is None
+                else GEOSGeometryBase(read(bytes(value, "ascii")), geom_class)
+            )
 
         return converter
 
