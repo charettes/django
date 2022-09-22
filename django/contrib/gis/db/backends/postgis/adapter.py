@@ -1,8 +1,6 @@
 """
  This object provides quoting for GEOS geometries into PostgreSQL/PostGIS.
 """
-from psycopg2.extensions import ISQLQuote, adapt
-
 from django.contrib.gis.db.backends.postgis.pgraster import to_pgraster
 from django.contrib.gis.geos import GEOSGeometry
 
@@ -26,6 +24,8 @@ class PostGISAdapter:
 
     def __conform__(self, proto):
         """Does the given protocol conform to what Psycopg2 expects?"""
+        from psycopg2.extensions import ISQLQuote
+
         if proto == ISQLQuote:
             return self
         else:
@@ -50,6 +50,8 @@ class PostGISAdapter:
         """
         Return a properly quoted string for use in PostgreSQL/PostGIS.
         """
+        from psycopg2.extensions import adapt
+
         if self.is_geometry:
             # Psycopg will figure out whether to use E'\\000' or '\000'.
             return b"%s(%s)" % (
