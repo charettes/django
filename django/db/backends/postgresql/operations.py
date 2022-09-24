@@ -6,7 +6,7 @@ from psycopg2.extras import Json as Jsonb
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
-from django.db.backends.postgresql.psycopg_any import Inet, sql
+from django.db.backends.postgresql.psycopg_any import Inet, errors, sql
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
 from django.utils.regex_helper import _lazy_re_compile
@@ -278,7 +278,10 @@ class DatabaseOperations(BaseDatabaseOperations):
             return ["DISTINCT"], []
 
     def last_executed_query(self, cursor, sql, params):
-        return compose(sql, params).as_string(cursor.connection)
+        try:
+            return compose(sql, params).as_string(cursor.connection)
+        except errors.DataError:
+            return f"ERROR/{sql}"
 
     def return_insert_columns(self, fields):
         if not fields:
