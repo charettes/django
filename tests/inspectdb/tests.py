@@ -576,7 +576,9 @@ class InspectDBTransactionalTests(TransactionTestCase):
                     filename {}
                 )
             """
-                ).format(sql.Literal(os.devnull))
+                )
+                .format(sql.Literal(os.devnull))
+                .as_string(cursor.cursor)
             )
         out = StringIO()
         foreign_table_model = "class InspectdbIrisForeignTable(models.Model):"
