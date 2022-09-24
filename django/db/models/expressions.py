@@ -1260,7 +1260,7 @@ class ExpressionWrapper(SQLiteNumericMixin, Expression):
             return expression.get_group_by_cols()
         # For non-expressions e.g. an SQL WHERE clause, the entire
         # `expression` must be included in the GROUP BY clause.
-        return super().get_group_by_cols()
+        return super().get_group_by_cols(alias=alias)
 
     def as_sql(self, compiler, connection):
         return compiler.compile(self.expression)
