@@ -1,4 +1,3 @@
-import os
 import re
 from io import StringIO
 from unittest import mock, skipUnless
@@ -557,28 +556,21 @@ class InspectDBTransactionalTests(TransactionTestCase):
 
     @skipUnless(connection.vendor == "postgresql", "PostgreSQL specific SQL")
     def test_foreign_data_wrapper(self):
-        from django.db.backends.postgresql.psycopg_any import sql
-
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS file_fdw")
             cursor.execute(
                 "CREATE SERVER inspectdb_server FOREIGN DATA WRAPPER file_fdw"
             )
             cursor.execute(
-                sql.SQL(
-                    """
+                """
                 CREATE FOREIGN TABLE inspectdb_iris_foreign_table (
                     petal_length real,
                     petal_width real,
                     sepal_length real,
                     sepal_width real
                 ) SERVER inspectdb_server OPTIONS (
-                    filename {}
-                )
-            """
-                )
-                .format(sql.Literal(os.devnull))
-                .as_string(cursor.cursor)
+                    filename '/dev/null'
+                )"""
             )
         out = StringIO()
         foreign_table_model = "class InspectdbIrisForeignTable(models.Model):"

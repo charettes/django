@@ -279,7 +279,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def last_executed_query(self, cursor, sql, params):
         try:
-            return compose(sql, params).as_string(cursor.connection)
+            return compose(sql, params, cursor.connection)
         except errors.DataError:
             return f"ERROR/{sql}"
 
@@ -372,10 +372,10 @@ class DatabaseOperations(BaseDatabaseOperations):
 _positional_param_re = _lazy_re_compile(r"%%|%s")
 
 
-def compose(query, params):
+def compose(query, params, context):
     """Compose a query and argument on the client."""
     if params is None:
-        return sql.SQL(query)
+        return sql.SQL(query).as_string(context)
 
     # Convert placeholders from %s to {} and merge parameters with escaping
     query = str(query).replace("{", "{{").replace("}", "}}")
@@ -385,14 +385,14 @@ def compose(query, params):
             lambda match: "%" if match.group(0) == "%%" else "{}", query
         )
         params = (sql.Literal(p) for p in params)
-        return sql.SQL(query).format(*params)
+        return sql.SQL(query).format(*params).as_string(context)
     elif isinstance(params, Mapping):
         new_params = {}
         query = query.replace("%%", "%")
         for name, param in params.items():
             new_params[name] = sql.Literal(param)
             query = query.replace(f"%({name})s", "{%s}" % name)
-        return sql.SQL(query).format(**new_params)
+        return sql.SQL(query).format(**new_params).as_string(context)
     else:
         raise TypeError(
             f"query parameters should be a mapping or a sequence, got {type(params)}"

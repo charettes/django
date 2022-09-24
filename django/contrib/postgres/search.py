@@ -147,8 +147,8 @@ class SearchVector(SearchVectorCombinable, Func):
 
         # These parameters must be bound on the client side because we may
         # want to create an index on this expression.
-        sql = compose(sql, config_params + params + extra_params)
-        return sql.as_string(connection.connection), []
+        sql = compose(sql, config_params + params + extra_params, connection.connection)
+        return sql, []
 
 
 class CombinedSearchVector(SearchVectorCombinable, CombinedExpression):
@@ -322,7 +322,7 @@ class SearchHeadline(Func):
         if self.options:
             options_params.append(
                 ", ".join(
-                    compose(f"{option}=%s", [value]).as_string(connection.connection)
+                    compose(f"{option}=%s", [value], connection.connection)
                     for option, value in self.options.items()
                 )
             )
