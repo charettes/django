@@ -34,8 +34,8 @@ if PSYCOPG_VERSION[0] >= 3:
     class TextLoader(Loader):
         def load(self, data):
             if isinstance(data, memoryview):
-                data = bytes(data).decode()  # We get hex
-            return data
+                return bytes(data).decode()
+            return data.decode()
 
     @lru_cache
     def postgis_adapters(geo_info, geog_info, raster_info):
