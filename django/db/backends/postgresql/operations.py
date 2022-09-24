@@ -369,6 +369,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         )
 
 
+_positional_param_re = _lazy_re_compile(r"%%|%s")
+
+
 def compose(query, params):
     """Compose a query and argument on the client."""
     if params is None:
@@ -378,11 +381,14 @@ def compose(query, params):
     query = str(query).replace("{", "{{").replace("}", "}}")
 
     if isinstance(params, Sequence):
-        query = query.replace("%s", "{}").replace("%%", "%")
+        query = _positional_param_re.sub(
+            lambda match: "%" if match.group(0) == "%%" else "{}", query
+        )
         params = (sql.Literal(p) for p in params)
         return sql.SQL(query).format(*params)
     elif isinstance(params, Mapping):
         new_params = {}
+        query = query.replace("%%", "%")
         for name, param in params.items():
             new_params[name] = sql.Literal(param)
             query = query.replace(f"%({name})s", "{%s}" % name)
