@@ -10,7 +10,7 @@ from .introspection import PostGISIntrospection
 from .operations import PostGISOperations
 from .schema import PostGISSchemaEditor
 
-if PSYCOPG_VERSION[0] >= 3:
+if PSYCOPG_VERSION >= (3, 0, 0):
     from psycopg.adapt import Dumper, Loader
     from psycopg.pq import Format
 

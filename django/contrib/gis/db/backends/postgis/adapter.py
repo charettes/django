@@ -52,7 +52,7 @@ class PostGISAdapter:
         """
         Return a properly quoted string for use in PostgreSQL/PostGIS.
         """
-        if PSYCOPG_VERSION[0] >= 3:
+        if PSYCOPG_VERSION >= (3, 0, 0):
 
             def quote(obj):
                 return sql.quote(obj).encode()

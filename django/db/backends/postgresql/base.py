@@ -44,7 +44,7 @@ if PSYCOPG_VERSION < (2, 8, 4):
         % Database.__version__
     )
 
-if PSYCOPG_VERSION[0] >= 3:
+if PSYCOPG_VERSION >= (3, 0, 0):
     import psycopg
     from psycopg import sql
     from psycopg.pq import Format
@@ -87,9 +87,9 @@ def get_adapters_template(use_tz, timezone):
     # Create at adapters map extending the base one to base connections on
     ctx = psycopg.adapt.AdaptersMap(psycopg.adapters)
 
-    # Register a no-op dumper to avoid a round trip from psycopg3's decode
-    # to json.dumps() to json.loads(), when using a custom decoder in
-    # JSONField.
+    # Register a no-op dumper to avoid a round trip from psycopg version 3
+    # decode to json.dumps() to json.loads(), when using a custom decoder
+    # in JSONField.
     ctx.register_loader("jsonb", TextLoader)
 
     # Don't convert automatically from Postgres network types to Python ipaddress
@@ -262,9 +262,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_new_connection(self, conn_params):
         if self.is_psycopg3:
             ctx = get_adapters_template(settings.USE_TZ, self.timezone)
-            connection = Database.connect(**conn_params, context=ctx)
+            connection = self.Database.connect(**conn_params, context=ctx)
         else:
-            connection = Database.connect(**conn_params)
+            connection = self.Database.connect(**conn_params)
             # Register dummy loads() to avoid a round trip from psycopg2's decode
             # to json.dumps() to json.loads(), when using a custom decoder in
             # JSONField.
@@ -443,7 +443,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return CursorDebugWrapper(cursor, self)
 
 
-if PSYCOPG_VERSION[0] >= 3:
+if PSYCOPG_VERSION >= (3, 0, 0):
 
     class BaseTzLoader(TimestamptzLoader):
         """

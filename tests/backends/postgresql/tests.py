@@ -249,7 +249,7 @@ class Tests(TestCase):
         DATABASES ['OPTIONS']['isolation_level'].
         """
         if not connection.is_psycopg3:
-            raise unittest.SkipTest("Requires psycopg3")
+            raise unittest.SkipTest("Requires psycopg version 3")
         import psycopg
 
         self.assertEqual(connection.connection.isolation_level, None)
