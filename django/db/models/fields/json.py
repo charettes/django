@@ -99,6 +99,8 @@ class JSONField(CheckFieldDefaultMixin, Field):
     def get_db_prep_value(self, value, connection, prepared=False):
         if hasattr(value, "as_sql"):
             return value
+        if value == "null":
+            value = None
         return connection.ops.adapt_json_value(value, self.encoder)
 
     def get_db_prep_save(self, value, connection):

@@ -15,7 +15,6 @@ from django.db import DatabaseError as WrappedDatabaseError
 from django.db import connections
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.utils import CursorDebugWrapper as BaseCursorDebugWrapper
-from django.db.utils import Text
 from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
 from django.utils.safestring import SafeString
@@ -49,7 +48,7 @@ if is_psycopg3:
     from psycopg.pq import Format
     from psycopg.types.datetime import TimestamptzLoader
     from psycopg.types.range import Range, RangeDumper
-    from psycopg.types.string import StrDumper, TextLoader
+    from psycopg.types.string import TextLoader
 
     TIMESTAMPTZ_OID = psycopg.adapters.types["timestamptz"].oid
     TSRANGE_OID = psycopg.postgres.types["tsrange"].oid
@@ -95,10 +94,6 @@ def get_adapters_template(use_tz, timezone):
     ctx.register_loader("inet", TextLoader)
     ctx.register_loader("cidr", TextLoader)
     ctx.register_dumper(Range, DjangoRangeDumper)
-
-    # Dump Text strings using the text oid, where the default unknown oid
-    # doesn't work well (e.g. in variadic functions)
-    ctx.register_dumper(Text, StrDumper)
 
     # Register a timestamptz loader configured on self.timezone.
     # This, however, can be overridden by create_cursor.

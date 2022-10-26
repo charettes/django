@@ -3,7 +3,6 @@
 from django.db import NotSupportedError
 from django.db.models.expressions import Func, Value
 from django.db.models.fields.json import JSONField
-from django.db.utils import Text
 from django.utils.regex_helper import _lazy_re_compile
 
 
@@ -160,18 +159,12 @@ class JSONObject(Func):
         return super().as_sql(compiler, connection, **extra_context)
 
     def as_postgresql(self, compiler, connection, **extra_context):
-        sql, params = self.as_sql(
+        return self.as_sql(
             compiler,
             connection,
             function="JSONB_BUILD_OBJECT",
             **extra_context,
         )
-
-        # Enforce str to be text rather than unknown, otherwise they cannot
-        # be merged server-side
-        params = [Text(p) if isinstance(p, str) else p for p in params]
-
-        return sql, params
 
     def as_oracle(self, compiler, connection, **extra_context):
         class ArgJoiner:

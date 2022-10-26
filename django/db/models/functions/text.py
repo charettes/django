@@ -3,7 +3,6 @@ from django.db.models.expressions import Func, Value
 from django.db.models.fields import CharField, IntegerField
 from django.db.models.functions import Coalesce
 from django.db.models.lookups import Transform
-from django.db.utils import Text
 
 
 class MySQLSHA2Mixin:
@@ -128,14 +127,6 @@ class Concat(Func):
         if len(expressions) == 2:
             return ConcatPair(*expressions)
         return ConcatPair(expressions[0], self._paired(expressions[1:]))
-
-    def as_postgresql(self, compiler, connection, **extra_context):
-        sql, params = super().as_sql(compiler, connection, **extra_context)
-
-        # Force text oid instead of unknown for text params
-        params = [Text(p) if isinstance(p, str) else p for p in params]
-
-        return sql, params
 
 
 class Left(Func):

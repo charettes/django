@@ -1,9 +1,10 @@
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import (
     CharField,
     F,
     Func,
     IntegerField,
+    JSONField,
     OuterRef,
     Q,
     Subquery,
@@ -124,7 +125,13 @@ class TestGeneralAggregate(PostgreSQLTestCase):
             (BitOr("integer_field", default=0), 0),
             (BoolAnd("boolean_field", default=False), False),
             (BoolOr("boolean_field", default=False), False),
-            (JSONBAgg("integer_field", default=Value('["<empty>"]')), ["<empty>"]),
+            (
+                JSONBAgg(
+                    "integer_field",
+                    default=Value(["<empty>"], output_field=JSONField()),
+                ),
+                ["<empty>"],
+            ),
             (
                 StringAgg("char_field", delimiter=";", default=Value("<empty>")),
                 "<empty>",
@@ -141,7 +148,7 @@ class TestGeneralAggregate(PostgreSQLTestCase):
                     )
                     self.assertEqual(values, {"aggregation": expected_result})
                 # Empty result when query must be executed.
-                with self.assertNumQueries(1):
+                with transaction.atomic(), self.assertNumQueries(1):
                     values = AggregateTestModel.objects.aggregate(
                         aggregation=aggregation,
                     )
@@ -189,7 +196,9 @@ class TestGeneralAggregate(PostgreSQLTestCase):
         )
         self.assertEqual(
             queryset.aggregate(
-                aggregation=JSONBAgg("integer_field", default=Value("[]"))
+                aggregation=JSONBAgg(
+                    "integer_field", default=Value([], output_field=JSONField())
+                )
             ),
             {"aggregation": []},
         )

@@ -31,6 +31,14 @@ class DeprecatedConvertValueMixin:
             self._default_provided = True
         super().__init__(*expressions, default=default, **extra)
 
+    def resolve_expression(self, *args, **kwargs):
+        resolved = super().resolve_expression(*args, **kwargs)
+        if not self._default_provided:
+            resolved.empty_result_set_value = getattr(
+                self, "deprecation_empty_result_set_value", self.deprecation_value
+            )
+        return resolved
+
     def convert_value(self, value, expression, connection):
         if value is None and not self._default_provided:
             warnings.warn(self.deprecation_msg, category=RemovedInDjango50Warning)
@@ -87,6 +95,7 @@ class JSONBAgg(DeprecatedConvertValueMixin, OrderableAggMixin, Aggregate):
 
     # RemovedInDjango50Warning
     deprecation_value = "[]"
+    deprecation_empty_result_set_value = property(lambda self: [])
     deprecation_msg = (
         "In Django 5.0, JSONBAgg() will return None instead of an empty list "
         "if there are no rows. Pass default=None to opt into the new behavior "
