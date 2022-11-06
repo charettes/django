@@ -11,6 +11,7 @@ from django.contrib.gis.measure import Distance
 from django.core.exceptions import ImproperlyConfigured
 from django.db import NotSupportedError, ProgrammingError
 from django.db.backends.postgresql.operations import DatabaseOperations
+from django.db.backends.postgresql.psycopg_any import is_psycopg3
 from django.db.models import Func, Value
 from django.utils.functional import cached_property
 from django.utils.version import get_version_tuple
@@ -161,12 +162,7 @@ class PostGISOperations(BaseSpatialOperations, DatabaseOperations):
 
     unsupported_functions = set()
 
-    @cached_property
-    def select(self):
-        if self.connection.is_psycopg3:
-            return "%s"
-        else:
-            return "%s::bytea"
+    select = "%s" if is_psycopg3 else "%s::bytea"
 
     select_extent = None
 

@@ -26,8 +26,8 @@ try:
         import psycopg as Database
     except ImportError:
         import psycopg2 as Database
-except ImportError as e:
-    raise ImproperlyConfigured("Error loading psycopg module: %s" % e)
+except ImportError:
+    raise ImproperlyConfigured("Error loading psycopg2 or psycopg module")
 
 
 def psycopg_version():
@@ -35,16 +35,15 @@ def psycopg_version():
     return get_version_tuple(version)
 
 
-PSYCOPG_VERSION = psycopg_version()
-
-
-if PSYCOPG_VERSION < (2, 8, 4):
+if psycopg_version() < (2, 8, 4):
     raise ImproperlyConfigured(
         "psycopg2 version 2.8.4 or newer is required; you have %s"
         % Database.__version__
     )
 
-if PSYCOPG_VERSION >= (3, 0, 0):
+from .psycopg_any import is_psycopg3  # NOQA isort:skip
+
+if is_psycopg3:
     import psycopg
     from psycopg import sql
     from psycopg.pq import Format
@@ -78,7 +77,7 @@ from .creation import DatabaseCreation  # NOQA isort:skip
 from .features import DatabaseFeatures  # NOQA isort:skip
 from .introspection import DatabaseIntrospection  # NOQA isort:skip
 from .operations import DatabaseOperations  # NOQA isort:skip
-from .psycopg_any import IsolationLevel  # NOQA isort:skip
+from .psycopg_any import IsolationLevel, is_psycopg3  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor  # NOQA isort:skip
 
 
@@ -205,6 +204,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # Map the initial connection state
     ctx_templates = {}
 
+    is_psycopg3 = is_psycopg3
+
     def get_database_version(self):
         """
         Return a tuple of the database's version.
@@ -258,12 +259,22 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params["port"] = settings_dict["PORT"]
         return conn_params
 
-    @async_unsafe
-    def get_new_connection(self, conn_params):
-        if self.is_psycopg3:
+    if is_psycopg3:
+
+        def _get_new_connection(self, conn_params):
             ctx = get_adapters_template(settings.USE_TZ, self.timezone)
-            connection = self.Database.connect(**conn_params, context=ctx)
-        else:
+            return self.Database.connect(**conn_params, context=ctx)
+
+        def _configure_cursor(self, cursor):
+            # Register the cursor timezone only if the connection disagrees, so that
+            # we avoid to copy the adapters map.
+            tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
+            if self.timezone != tzloader.timezone:
+                register_tzloader(self.timezone, cursor)
+
+    else:
+
+        def _get_new_connection(self, conn_params):
             connection = self.Database.connect(**conn_params)
             # Register dummy loads() to avoid a round trip from psycopg2's decode
             # to json.dumps() to json.loads(), when using a custom decoder in
@@ -271,7 +282,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             psycopg2.extras.register_default_jsonb(
                 conn_or_curs=connection, loads=lambda x: x
             )
+            return connection
 
+        def _configure_cursor(self, cursor):
+            cursor.tzinfo_factory = self.tzinfo_factory if settings.USE_TZ else None
+
+    @async_unsafe
+    def get_new_connection(self, conn_params):
+        connection = self._get_new_connection(conn_params)
         # self.isolation_level must be set:
         # - after connecting to the database in order to obtain the database's
         #   default when no value is explicitly specified in options.
@@ -328,14 +346,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         else:
             cursor = self.connection.cursor()
 
-        if self.is_psycopg3:
-            # Register the cursor timezone only if the connection disagrees, so that
-            # we avoid to copy the adapters map.
-            tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
-            if self.timezone != tzloader.timezone:
-                register_tzloader(self.timezone, cursor)
-        else:
-            cursor.tzinfo_factory = self.tzinfo_factory if settings.USE_TZ else None
+        self._configure_cursor(cursor)
         return cursor
 
     def tzinfo_factory(self, offset):
@@ -431,10 +442,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 raise
 
     @cached_property
-    def is_psycopg3(self):
-        return PSYCOPG_VERSION[0] >= 3
-
-    @cached_property
     def pg_version(self):
         with self.temporary_connection():
             return self.connection.info.server_version
@@ -443,7 +450,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return CursorDebugWrapper(cursor, self)
 
 
-if PSYCOPG_VERSION >= (3, 0, 0):
+if is_psycopg3:
 
     class BaseTzLoader(TimestamptzLoader):
         """
@@ -504,6 +511,7 @@ if PSYCOPG_VERSION >= (3, 0, 0):
                 return self.cursor.copy(statement)
 
 else:
+
     Cursor = psycopg2.extensions.cursor
 
     class CursorDebugWrapper(BaseCursorDebugWrapper):

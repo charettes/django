@@ -8,6 +8,9 @@ try:
 
     DateRange = DateTimeRange = DateTimeTZRange = NumericRange = Range
     RANGE_TYPES = (Range,)
+
+    is_psycopg3 = True
+
 except ImportError:
     from enum import IntEnum
 
@@ -21,7 +24,7 @@ except ImportError:
         Range,
     )
 
-    def _quote(value):
+    def _quote(value, cursor_or_connection):
         adapted = extensions.adapt(value)
         if hasattr(adapted, "encoding"):
             adapted.encoding = "utf8"
@@ -37,3 +40,5 @@ except ImportError:
         SERIALIZABLE = extensions.ISOLATION_LEVEL_SERIALIZABLE
 
     RANGE_TYPES = (DateRange, DateTimeRange, DateTimeTZRange, NumericRange)
+
+    is_psycopg3 = False

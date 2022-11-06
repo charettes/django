@@ -3,7 +3,6 @@
 """
 from django.contrib.gis.db.backends.postgis.pgraster import to_pgraster
 from django.contrib.gis.geos import GEOSGeometry
-from django.db.backends.postgresql.base import PSYCOPG_VERSION
 from django.db.backends.postgresql.psycopg_any import sql
 
 
@@ -52,22 +51,11 @@ class PostGISAdapter:
         """
         Return a properly quoted string for use in PostgreSQL/PostGIS.
         """
-        if PSYCOPG_VERSION >= (3, 0, 0):
-
-            def quote(obj):
-                return sql.quote(obj).encode()
-
-        else:
-            from psycopg2.extensions import adapt
-
-            def quote(obj):
-                return adapt(obj).getquoted()
-
         if self.is_geometry:
             # Psycopg will figure out whether to use E'\\000' or '\000'.
             return b"%s(%s)" % (
                 b"ST_GeogFromWKB" if self.geography else b"ST_GeomFromEWKB",
-                quote(self.ewkb),
+                sql.quote(self.ewkb).encode(),
             )
         else:
             # For rasters, add explicit type cast to WKB string.

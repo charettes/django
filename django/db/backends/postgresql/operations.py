@@ -6,7 +6,7 @@ from psycopg2.extras import Json as Jsonb
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
-from django.db.backends.postgresql.psycopg_any import Inet, errors, sql
+from django.db.backends.postgresql.psycopg_any import Inet, errors, is_psycopg3, sql
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
 from django.utils.regex_helper import _lazy_re_compile
@@ -108,7 +108,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         sql, params = self._convert_sql_to_tz(sql, params, tzname)
         if lookup_type == "second":
             # Truncate fractional seconds.
-            return (f"EXTRACT(SECOND FROM DATE_TRUNC('second', {sql}))", params)
+            return f"EXTRACT(SECOND FROM DATE_TRUNC(%s, {sql}))", ("second", *params)
         return self.date_extract_sql(lookup_type, sql, params)
 
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
@@ -119,7 +119,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     def time_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "second":
             # Truncate fractional seconds.
-            return (f"EXTRACT(SECOND FROM DATE_TRUNC('second', {sql}))", params)
+            return f"EXTRACT(SECOND FROM DATE_TRUNC(%s, {sql}))", ("second", *params)
         return self.date_extract_sql(lookup_type, sql, params)
 
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
@@ -277,11 +277,22 @@ class DatabaseOperations(BaseDatabaseOperations):
         else:
             return ["DISTINCT"], []
 
-    def last_executed_query(self, cursor, sql, params):
-        try:
-            return compose(sql, params, cursor.connection)
-        except errors.DataError:
-            return f"ERROR/{sql}"
+    if is_psycopg3:
+
+        def last_executed_query(self, cursor, sql, params):
+            try:
+                return compose(sql, params, cursor.connection)
+            except errors.DataError:
+                return None
+
+    else:
+
+        def last_executed_query(self, cursor, sql, params):
+            # https://www.psycopg.org/docs/cursor.html#cursor.query
+            # The query attribute is a Psycopg extension to the DB API 2.0.
+            if cursor.query is not None:
+                return cursor.query.decode()
+            return None
 
     def return_insert_columns(self, fields):
         if not fields:

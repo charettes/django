@@ -1,8 +1,8 @@
 from functools import lru_cache
 
 from django.db.backends.base.base import NO_DB_ALIAS
-from django.db.backends.postgresql.base import PSYCOPG_VERSION
 from django.db.backends.postgresql.base import DatabaseWrapper as PsycopgDatabaseWrapper
+from django.db.backends.postgresql.psycopg_any import is_psycopg3
 
 from .adapter import PostGISAdapter
 from .features import DatabaseFeatures
@@ -10,7 +10,7 @@ from .introspection import PostGISIntrospection
 from .operations import PostGISOperations
 from .schema import PostGISSchemaEditor
 
-if PSYCOPG_VERSION >= (3, 0, 0):
+if is_psycopg3:
     from psycopg.adapt import Dumper, Loader
     from psycopg.pq import Format
 
@@ -143,48 +143,52 @@ class DatabaseWrapper(PsycopgDatabaseWrapper):
         self.register_geometry_adapters(connection)
         return connection
 
-    def register_geometry_adapters(self, pg_connection):
-        if not self.is_psycopg3:
-            return
+    if is_psycopg3:
 
-        from psycopg.types import TypeInfo
+        def register_geometry_adapters(self, pg_connection):
+            from psycopg.types import TypeInfo
 
-        if self.alias not in self._geometry_types:
-            geo_info = TypeInfo.fetch(pg_connection, "geometry")
-            if not geo_info:
-                return
-            self._geometry_types[self.alias] = geo_info
+            if self.alias not in self._geometry_types:
+                geo_info = TypeInfo.fetch(pg_connection, "geometry")
+                if not geo_info:
+                    return
+                self._geometry_types[self.alias] = geo_info
 
-        if self.alias not in self._geography_types:
-            geog_info = TypeInfo.fetch(pg_connection, "geography")
-            if not geog_info:
-                return
-            self._geography_types[self.alias] = geog_info
+            if self.alias not in self._geography_types:
+                geog_info = TypeInfo.fetch(pg_connection, "geography")
+                if not geog_info:
+                    return
+                self._geography_types[self.alias] = geog_info
 
-        if self.alias not in self._raster_types:
-            raster_info = TypeInfo.fetch(pg_connection, "raster")
-            if not raster_info:
-                return
-            self._raster_types[self.alias] = raster_info
+            if self.alias not in self._raster_types:
+                raster_info = TypeInfo.fetch(pg_connection, "raster")
+                if not raster_info:
+                    return
+                self._raster_types[self.alias] = raster_info
 
-        geo_info = self._geometry_types.get(self.alias)
-        if geo_info:
-            geo_info.register(pg_connection)
-            pg_connection.adapters.register_loader(geo_info.oid, TextLoader)
-            pg_connection.adapters.register_loader(geo_info.oid, BinaryLoader)
-        raster_info = self._raster_types.get(self.alias)
-        if raster_info:
-            raster_info.register(pg_connection)
-            pg_connection.adapters.register_loader(raster_info.oid, TextLoader)
-            pg_connection.adapters.register_loader(raster_info.oid, BinaryLoader)
-        geog_info = self._geography_types.get(self.alias)
-        if geog_info:
-            geog_info.register(pg_connection)
-            pg_connection.adapters.register_loader(geog_info.oid, TextLoader)
-            pg_connection.adapters.register_loader(geog_info.oid, BinaryLoader)
+            geo_info = self._geometry_types.get(self.alias)
+            if geo_info:
+                geo_info.register(pg_connection)
+                pg_connection.adapters.register_loader(geo_info.oid, TextLoader)
+                pg_connection.adapters.register_loader(geo_info.oid, BinaryLoader)
+            raster_info = self._raster_types.get(self.alias)
+            if raster_info:
+                raster_info.register(pg_connection)
+                pg_connection.adapters.register_loader(raster_info.oid, TextLoader)
+                pg_connection.adapters.register_loader(raster_info.oid, BinaryLoader)
+            geog_info = self._geography_types.get(self.alias)
+            if geog_info:
+                geog_info.register(pg_connection)
+                pg_connection.adapters.register_loader(geog_info.oid, TextLoader)
+                pg_connection.adapters.register_loader(geog_info.oid, BinaryLoader)
 
-        PostGISTextDumper, PostGISBinaryDumper = postgis_adapters(
-            geo_info, geog_info, raster_info
-        )
-        pg_connection.adapters.register_dumper(PostGISAdapter, PostGISTextDumper)
-        pg_connection.adapters.register_dumper(PostGISAdapter, PostGISBinaryDumper)
+            PostGISTextDumper, PostGISBinaryDumper = postgis_adapters(
+                geo_info, geog_info, raster_info
+            )
+            pg_connection.adapters.register_dumper(PostGISAdapter, PostGISTextDumper)
+            pg_connection.adapters.register_dumper(PostGISAdapter, PostGISBinaryDumper)
+
+    else:
+
+        def register_geometry_adapters(self, pg_connection):
+            pass
