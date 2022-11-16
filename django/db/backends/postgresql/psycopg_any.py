@@ -2,6 +2,7 @@ import ipaddress
 
 try:
     from psycopg import IsolationLevel, errors, sql
+    from psycopg.types.json import Jsonb
     from psycopg.types.range import Range
 
     Inet = ipaddress.ip_address
@@ -15,14 +16,9 @@ except ImportError:
     from enum import IntEnum
 
     from psycopg2 import errors, extensions, sql  # NOQA
-    from psycopg2.extras import (  # NOQA
-        DateRange,
-        DateTimeRange,
-        DateTimeTZRange,
-        Inet,
-        NumericRange,
-        Range,
-    )
+    from psycopg2.extras import DateRange, DateTimeRange, DateTimeTZRange, Inet  # NOQA
+    from psycopg2.extras import Json as Jsonb  # NOQA
+    from psycopg2.extras import NumericRange, Range  # NOQA
 
     def _quote(value, cursor_or_connection):
         adapted = extensions.adapt(value)

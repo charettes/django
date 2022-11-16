@@ -2,11 +2,15 @@ import json
 from collections.abc import Mapping, Sequence
 from functools import lru_cache, partial
 
-from psycopg2.extras import Json as Jsonb
-
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
-from django.db.backends.postgresql.psycopg_any import Inet, errors, is_psycopg3, sql
+from django.db.backends.postgresql.psycopg_any import (
+    Inet,
+    Jsonb,
+    errors,
+    is_psycopg3,
+    sql,
+)
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
 from django.utils.regex_helper import _lazy_re_compile
