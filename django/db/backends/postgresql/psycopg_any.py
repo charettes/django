@@ -20,7 +20,7 @@ except ImportError:
     from psycopg2.extras import Json as Jsonb  # NOQA
     from psycopg2.extras import NumericRange, Range  # NOQA
 
-    def _quote(value, cursor_or_connection):
+    def _quote(value, cursor_or_connection=None):
         adapted = extensions.adapt(value)
         if hasattr(adapted, "encoding"):
             adapted.encoding = "utf8"
