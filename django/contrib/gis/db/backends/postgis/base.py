@@ -148,35 +148,28 @@ class DatabaseWrapper(PsycopgDatabaseWrapper):
         def register_geometry_adapters(self, pg_connection):
             from psycopg.types import TypeInfo
 
-            if self.alias not in self._geometry_types:
-                geo_info = TypeInfo.fetch(pg_connection, "geometry")
-                if not geo_info:
-                    return
-                self._geometry_types[self.alias] = geo_info
-
-            if self.alias not in self._geography_types:
-                geog_info = TypeInfo.fetch(pg_connection, "geography")
-                if not geog_info:
-                    return
-                self._geography_types[self.alias] = geog_info
-
-            if self.alias not in self._raster_types:
-                raster_info = TypeInfo.fetch(pg_connection, "raster")
-                if not raster_info:
-                    return
-                self._raster_types[self.alias] = raster_info
-
             geo_info = self._geometry_types.get(self.alias)
+            if not geo_info:
+                geo_info = TypeInfo.fetch(pg_connection, "geometry")
+                self._geometry_types[self.alias] = geo_info
             if geo_info:
                 geo_info.register(pg_connection)
                 pg_connection.adapters.register_loader(geo_info.oid, TextLoader)
                 pg_connection.adapters.register_loader(geo_info.oid, BinaryLoader)
+
             raster_info = self._raster_types.get(self.alias)
+            if not raster_info:
+                raster_info = TypeInfo.fetch(pg_connection, "raster")
+                self._raster_types[self.alias] = raster_info
             if raster_info:
                 raster_info.register(pg_connection)
                 pg_connection.adapters.register_loader(raster_info.oid, TextLoader)
                 pg_connection.adapters.register_loader(raster_info.oid, BinaryLoader)
+
             geog_info = self._geography_types.get(self.alias)
+            if not geog_info:
+                geog_info = TypeInfo.fetch(pg_connection, "geography")
+                self._geography_types[self.alias] = geog_info
             if geog_info:
                 geog_info.register(pg_connection)
                 pg_connection.adapters.register_loader(geog_info.oid, TextLoader)
