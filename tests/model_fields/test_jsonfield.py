@@ -979,8 +979,13 @@ class TestQuerying(TestCase):
                 ).exists(),
                 False,
             )
+        cast = (
+            "::jsonb"
+            if connection.vendor == "postgresql" and connection.is_psycopg3
+            else ""
+        )
         self.assertIn(
-            """."value" -> 'test'' = ''"a"'') OR 1 = 1 OR (''d') = '"x"' """,
+            f"""."value" -> 'test'' = ''"a"'') OR 1 = 1 OR (''d') = '"x"'{cast} """,
             queries[0]["sql"],
         )
 
