@@ -48,7 +48,7 @@ if is_psycopg3:
     from psycopg.pq import Format
     from psycopg.types.datetime import TimestamptzLoader
     from psycopg.types.range import Range, RangeDumper
-    from psycopg.types.string import TextLoader
+    from psycopg.types.string import StrDumper, TextLoader
 
     TIMESTAMPTZ_OID = psycopg.adapters.types["timestamptz"].oid
     TSRANGE_OID = psycopg.postgres.types["tsrange"].oid
@@ -98,6 +98,10 @@ def get_adapters_template(use_tz, timezone):
     # Register a timestamptz loader configured on self.timezone.
     # This, however, can be overridden by create_cursor.
     register_tzloader(timezone, ctx)
+
+    # Dump strings using the text oid, where the default unknown oid
+    # doesn't work well (e.g. in variadic functions)
+    ctx.register_dumper(str, StrDumper)
 
     return ctx
 
