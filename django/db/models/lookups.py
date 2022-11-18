@@ -2,7 +2,7 @@ import itertools
 import math
 
 from django.core.exceptions import EmptyResultSet
-from django.db.models.expressions import Case, Col, Expression, Func, Value, When
+from django.db.models.expressions import Case, Expression, Func, Value, When
 from django.db.models.fields import (
     BooleanField,
     CharField,
@@ -582,22 +582,10 @@ class IsNull(BuiltinLookup):
                 "The QuerySet value for an isnull lookup must be True or False."
             )
         sql, params = compiler.compile(self.lhs)
-        placeholder = "%s"
-        # TODO: We cannot use as_postgresql because RelatedIsNull etc
-        # doesn't pick this up ://////////////////////////////////////
-        # Subclassed lookups are a PITA
-        if connection.vendor == "postgresql":
-            # TODO: What is the proper way to figure out the cast type?
-            if not isinstance(self.lhs, Col) and hasattr(
-                self.lhs.field, "cast_db_type"
-            ):
-                cast_db_type = self.lhs.field.cast_db_type(connection)
-                if cast_db_type:
-                    placeholder = "(%s)::" + cast_db_type
         if self.rhs:
-            return (placeholder + " IS NULL") % sql, params
+            return "%s IS NULL" % sql, params
         else:
-            return (placeholder + " IS NOT NULL") % sql, params
+            return "%s IS NOT NULL" % sql, params
 
 
 @Field.register_lookup
