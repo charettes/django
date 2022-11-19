@@ -1,5 +1,6 @@
 import warnings
 
+from django.db.backends.postgresql.base import CIStr
 from django.db.models import CharField, EmailField, TextField
 from django.test.utils import ignore_warnings
 from django.utils.deprecation import RemovedInDjango51Warning
@@ -22,6 +23,11 @@ class CIText:
 
     def db_type(self, connection):
         return "citext"
+
+    def get_db_prep_value(self, value, connection, prepared=False):
+        if value is None or hasattr(value, "as_sql"):
+            return value
+        return CIStr(value)
 
 
 class CICharField(CIText, CharField):
