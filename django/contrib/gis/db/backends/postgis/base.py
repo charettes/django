@@ -136,6 +136,7 @@ class DatabaseWrapper(PsycopgDatabaseWrapper):
             if bool(cursor.fetchone()):
                 return
             cursor.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+            # Ensure adapters are registers if postgis is used within this connection.
             self.register_geometry_adapters(self.connection)
 
     def get_new_connection(self, conn_params):
