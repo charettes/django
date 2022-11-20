@@ -255,19 +255,6 @@ class FieldGetDbPrepValueMixin:
         )
 
 
-class CastRHSMixin:
-    """
-    A helper to cast explicitly the rhs placeholder to the lhs value, if needed.
-    """
-
-    def as_postgresql(self, compiler, connection):
-        sql, params = self.as_sql(compiler, connection)
-        cast_type = self.lhs.field.cast_db_type(connection)
-        if cast_type and cast_type.endswith("]"):
-            sql = sql.replace("%s", f"%s::{cast_type}")
-        return sql, params
-
-
 class FieldGetDbPrepValueIterableMixin(FieldGetDbPrepValueMixin):
     """
     Some lookups require Field.get_db_prep_value() to be called on each value
@@ -383,22 +370,22 @@ class IExact(BuiltinLookup):
 
 
 @Field.register_lookup
-class GreaterThan(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
+class GreaterThan(FieldGetDbPrepValueMixin, BuiltinLookup):
     lookup_name = "gt"
 
 
 @Field.register_lookup
-class GreaterThanOrEqual(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
+class GreaterThanOrEqual(FieldGetDbPrepValueMixin, BuiltinLookup):
     lookup_name = "gte"
 
 
 @Field.register_lookup
-class LessThan(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
+class LessThan(FieldGetDbPrepValueMixin, BuiltinLookup):
     lookup_name = "lt"
 
 
 @Field.register_lookup
-class LessThanOrEqual(CastRHSMixin, FieldGetDbPrepValueMixin, BuiltinLookup):
+class LessThanOrEqual(FieldGetDbPrepValueMixin, BuiltinLookup):
     lookup_name = "lte"
 
 
