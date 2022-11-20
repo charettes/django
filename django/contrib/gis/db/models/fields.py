@@ -29,13 +29,6 @@ SRIDCacheEntry = namedtuple(
 )
 
 
-class Spheroid(str):
-    def __new__(cls, spheroid, semi_major, inverse_flattening):
-        return super().__new__(
-            cls, f'SPHEROID["{spheroid}",{semi_major},{inverse_flattening}]'
-        )
-
-
 def get_srid_info(srid, connection):
     """
     Return the units, unit name, and spheroid WKT associated with the
@@ -68,7 +61,8 @@ def get_srid_info(srid, connection):
         _srid_cache[alias][srid] = SRIDCacheEntry(
             units=units,
             units_name=units_name,
-            spheroid=Spheroid(srs["spheroid"], srs.semi_major, srs.inverse_flattening),
+            spheroid='SPHEROID["%s",%s,%s]'
+            % (srs["spheroid"], srs.semi_major, srs.inverse_flattening),
             geodetic=srs.geographic,
         )
 

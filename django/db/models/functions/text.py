@@ -1,8 +1,10 @@
 from django.db import NotSupportedError
 from django.db.models.expressions import Func, Value
-from django.db.models.fields import CharField, IntegerField
+from django.db.models.fields import CharField, IntegerField, TextField
 from django.db.models.functions import Coalesce
 from django.db.models.lookups import Transform
+
+from .comparison import Cast
 
 
 class MySQLSHA2Mixin:
@@ -79,6 +81,20 @@ class ConcatPair(Func):
             connection,
             template="%(expressions)s",
             arg_joiner=" || ",
+            **extra_context,
+        )
+
+    def as_postgresql(self, compiler, connection, **extra_context):
+        copy = self.copy()
+        copy.set_source_expressions(
+            [
+                Cast(expression, TextField())
+                for expression in copy.get_source_expressions()
+            ]
+        )
+        return super(ConcatPair, copy).as_sql(
+            compiler,
+            connection,
             **extra_context,
         )
 

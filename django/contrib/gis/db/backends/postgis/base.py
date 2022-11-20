@@ -148,9 +148,6 @@ class DatabaseWrapper(PsycopgDatabaseWrapper):
 
         def register_geometry_adapters(self, pg_connection):
             from psycopg.types import TypeInfo
-            from psycopg.types.string import StrDumperUnknown
-
-            from django.contrib.gis.db.models.fields import Spheroid
 
             geo_info = self._geometry_types.get(self.alias)
             if not geo_info:
@@ -184,7 +181,6 @@ class DatabaseWrapper(PsycopgDatabaseWrapper):
             )
             pg_connection.adapters.register_dumper(PostGISAdapter, PostGISTextDumper)
             pg_connection.adapters.register_dumper(PostGISAdapter, PostGISBinaryDumper)
-            pg_connection.adapters.register_dumper(Spheroid, StrDumperUnknown)
 
     else:
 

@@ -48,15 +48,11 @@ if is_psycopg3:
     from psycopg.pq import Format
     from psycopg.types.datetime import TimestamptzLoader
     from psycopg.types.range import Range, RangeDumper
-    from psycopg.types.string import StrDumper, StrDumperUnknown, TextLoader
+    from psycopg.types.string import TextLoader
 
     TIMESTAMPTZ_OID = psycopg.adapters.types["timestamptz"].oid
     TSRANGE_OID = psycopg.postgres.types["tsrange"].oid
     TSTZRANGE_OID = psycopg.postgres.types["tstzrange"].oid
-
-    # RemovedInDjango51Warning.
-    class CIStr(str):
-        pass
 
 else:
     import psycopg2.extensions
@@ -74,7 +70,6 @@ else:
         psycopg2.extensions.UNICODE,
     )
     psycopg2.extensions.register_type(INETARRAY)
-    CIStr = str
 
 # Some of these import psycopg, so import them after checking if it's installed.
 from .client import DatabaseClient  # NOQA isort:skip
@@ -104,13 +99,6 @@ def get_adapters_template(use_tz, timezone):
     # Register a timestamptz loader configured on self.timezone.
     # This, however, can be overridden by create_cursor.
     register_tzloader(timezone, ctx)
-
-    # Dump strings using the text oid, where the default unknown oid
-    # doesn't work well (e.g. in variadic functions)
-    ctx.register_dumper(str, StrDumper)
-
-    # RemovedInDjango51Warning.
-    ctx.register_dumper(CIStr, StrDumperUnknown)
 
     return ctx
 
