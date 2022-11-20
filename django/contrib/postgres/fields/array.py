@@ -4,6 +4,7 @@ from django.contrib.postgres import lookups
 from django.contrib.postgres.forms import SimpleArrayField
 from django.contrib.postgres.validators import ArrayMaxLengthValidator
 from django.core import checks, exceptions
+from django.db.backends.postgresql.psycopg_any import is_psycopg3
 from django.db.models import Field, Func, IntegerField, Transform, Value
 from django.db.models.fields.mixins import CheckFieldDefaultMixin
 from django.db.models.lookups import Exact, In
@@ -13,6 +14,30 @@ from ..utils import prefix_validation_error
 from .utils import AttributeSetter
 
 __all__ = ["ArrayField"]
+
+
+if is_psycopg3:
+    from psycopg.types import numeric
+
+    POSTGRES_WRAPPERS = {
+        "SmallIntegerField": numeric.Int2,
+        "IntegerField": numeric.Int4,
+        "BigIntegerField": numeric.Int8,
+    }
+
+    def pg_type(val, internal_type):
+        if val is None:
+            return val
+        try:
+            wrapper = POSTGRES_WRAPPERS[internal_type]
+        except KeyError:
+            return val
+        return wrapper(val)
+
+else:
+
+    def pg_type(val, internal_type):
+        return val
 
 
 class ArrayField(CheckFieldDefaultMixin, Field):
@@ -125,8 +150,12 @@ class ArrayField(CheckFieldDefaultMixin, Field):
 
     def get_db_prep_value(self, value, connection, prepared=False):
         if isinstance(value, (list, tuple)):
+            base_internal_type = self.base_field.get_internal_type()
             return [
-                self.base_field.get_db_prep_value(i, connection, prepared=False)
+                pg_type(
+                    self.base_field.get_db_prep_value(i, connection, prepared=False),
+                    base_internal_type,
+                )
                 for i in value
             ]
         return value
@@ -315,17 +344,6 @@ class ArrayInLookup(In):
             else:
                 prepared_values.append(tuple(value))
         return prepared_values
-
-    def batch_process_rhs(self, compiler, connection, rhs=None):
-        # Cast the RHS items to the LHS, because there are cases in which
-        # Postgres cannot infer the right type. For instance
-        # postgres_tests.test_array.TestQuerying.test_in fails with
-        # "operator does not exist: integer[] = numeric[]", although it's
-        # possible to cast manually numeric[]::integer[].
-        sqls, sqls_params = super().batch_process_rhs(compiler, connection, rhs)
-        cast_ph = f"%s::{self.lhs.field.cast_db_type(connection)}"
-        sqls = tuple(cast_ph if sql == "%s" else sql for sql in sqls)
-        return sqls, sqls_params
 
 
 class IndexTransform(Transform):
