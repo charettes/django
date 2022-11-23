@@ -29,6 +29,7 @@ from django.test.utils import Approximate
 from .models import (
     Alfa,
     Author,
+    AuthorProxy,
     Book,
     Bravo,
     Charlie,
@@ -37,6 +38,8 @@ from .models import (
     HardbackBook,
     ItemTag,
     Publisher,
+    RecipeProxy,
+    RecipeUnmanaged,
     SelfRefFK,
     Store,
     WithManualPK,
@@ -188,9 +191,8 @@ class AggregationTests(TestCase):
                     }
                 ],
             )
-        if connection.features.allows_group_by_refs:
-            alias = connection.ops.quote_name("discount_price")
-            self.assertIn(f"GROUP BY {alias}", ctx[0]["sql"])
+        if connection.features.allows_group_by_select_index:
+            self.assertIn("GROUP BY 1", ctx[0]["sql"])
 
     def test_aggregates_in_where_clause(self):
         """
@@ -1826,6 +1828,53 @@ class AggregationTests(TestCase):
             Q(authors__in=authors) | Q(authors__count__gt=2)
         )
         self.assertEqual(set(books), {self.b1, self.b4})
+
+    def test_aggregate_and_annotate_duplicate_columns(self):
+        books = (
+            Book.objects.values("isbn")
+            .annotate(
+                name=F("publisher__name"),
+                num_authors=Count("authors"),
+            )
+            .order_by("isbn")
+        )
+        self.assertSequenceEqual(
+            books,
+            [
+                {"isbn": "013235613", "name": "Prentice Hall", "num_authors": 3},
+                {"isbn": "013790395", "name": "Prentice Hall", "num_authors": 2},
+                {"isbn": "067232959", "name": "Sams", "num_authors": 1},
+                {"isbn": "155860191", "name": "Morgan Kaufmann", "num_authors": 1},
+                {"isbn": "159059725", "name": "Apress", "num_authors": 2},
+                {"isbn": "159059996", "name": "Apress", "num_authors": 1},
+            ],
+        )
+
+    def test_aggregate_and_annotate_duplicate_columns_proxy(self):
+        author = AuthorProxy.objects.latest("pk")
+        recipe = RecipeProxy.objects.create(name="Dahl", author=author)
+        recipe.tasters.add(author)
+        recipes = RecipeProxy.objects.values("pk").annotate(
+            name=F("author__name"),
+            num_tasters=Count("tasters"),
+        )
+        self.assertSequenceEqual(
+            recipes,
+            [{"pk": recipe.pk, "name": "Stuart Russell", "num_tasters": 1}],
+        )
+
+    def test_aggregate_and_annotate_duplicate_columns_unmanaged(self):
+        author = AuthorProxy.objects.latest("pk")
+        recipe = RecipeProxy.objects.create(name="Dahl", author=author)
+        recipe.tasters.add(author)
+        recipes = RecipeUnmanaged.objects.values("pk").annotate(
+            name=F("author__age"),
+            num_tasters=Count("tasters"),
+        )
+        self.assertSequenceEqual(
+            recipes,
+            [{"pk": recipe.pk, "name": 46, "num_tasters": 1}],
+        )
 
 
 class JoinPromotionTests(TestCase):

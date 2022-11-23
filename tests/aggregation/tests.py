@@ -1642,9 +1642,7 @@ class AggregateTestCase(TestCase):
         )
         with self.assertNumQueries(1) as ctx:
             self.assertSequenceEqual(books_qs, [book])
-        # Outerquery SELECT, annotation SELECT, and WHERE SELECT but GROUP BY
-        # selected alias, if allowed.
-        if connection.features.allows_group_by_refs:
+        if connection.features.allows_group_by_select_index:
             self.assertEqual(ctx[0]["sql"].count("SELECT"), 3)
 
     @skipUnlessDBFeature("supports_subqueries_in_group_by")
