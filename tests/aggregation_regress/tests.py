@@ -11,6 +11,7 @@ from django.db.models import (
     Aggregate,
     Avg,
     Case,
+    CharField,
     Count,
     DecimalField,
     F,
@@ -23,6 +24,8 @@ from django.db.models import (
     Variance,
     When,
 )
+from django.db.models.functions import Cast, Concat
+
 from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import Approximate
 
@@ -30,6 +33,7 @@ from .models import (
     Alfa,
     Author,
     AuthorProxy,
+    AuthorUnmanaged,
     Book,
     Bravo,
     Charlie,
@@ -1874,6 +1878,44 @@ class AggregationTests(TestCase):
         self.assertSequenceEqual(
             recipes,
             [{"pk": recipe.pk, "name": 46, "num_tasters": 1}],
+        )
+
+    def test_aggregate_group_by_unseen_columns_unmanaged(self):
+        author = AuthorProxy.objects.latest("pk")
+        shadow_author = AuthorProxy.objects.create(
+            name=author.name,
+            age=author.age - 2,
+        )
+        recipe = RecipeProxy.objects.create(name="Dahl", author=author)
+        shadow_recipe = RecipeProxy.objects.create(
+            name="Shadow Dahl",
+            author=shadow_author,
+        )
+        recipe.tasters.add(shadow_author)
+        shadow_recipe.tasters.add(author)
+        # This should select how many tasters each author had
+        # According to a calculated field `name`
+        # The database has a column `name` that Django is
+        # unaware of, and is equal for the two authors.
+        # if grouping column is referenced by its name ('name'),
+        # Postgresql should only return one result.
+        author_recipes = (
+            AuthorUnmanaged.objects.annotate(
+                name=Concat(
+                    Value("Writer at "),
+                    Cast(F("age"), output_field=CharField()),
+                    output_field=CharField(),
+                )
+            )
+            .values("name")  # Field used for grouping
+            .annotate(num_recipes=Count("recipeunmanaged"))
+            .filter(num_recipes__gt=0)
+            .values("num_recipes")  # Drop grouping column
+        )
+
+        self.assertSequenceEqual(
+            author_recipes,
+            [{"num_recipes": 1}, {"num_recipes": 1}],
         )
 
 
