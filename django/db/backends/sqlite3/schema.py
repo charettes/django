@@ -119,7 +119,14 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         else:
             super().alter_db_table(model, old_db_table, new_db_table)
 
-    def alter_field(self, model, old_field, new_field, strict=False):
+    def alter_field(
+        self,
+        model,
+        old_field,
+        new_field,
+        m2m_model=None,
+        strict=False,
+    ):
         if not self._field_should_be_altered(old_field, new_field):
             return
         old_field_name = old_field.name
@@ -142,7 +149,13 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     % (model._meta.db_table, old_field_name)
                 )
             with atomic(self.connection.alias):
-                super().alter_field(model, old_field, new_field, strict=strict)
+                super().alter_field(
+                    model,
+                    old_field,
+                    new_field,
+                    m2m_model=m2m_model,
+                    strict=strict,
+                )
                 # Follow SQLite's documented procedure for performing changes
                 # that don't affect the on-disk content.
                 # https://sqlite.org/lang_altertable.html#otheralter
@@ -170,10 +183,21 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             with self.connection.cursor() as cursor:
                 cursor.execute("VACUUM")
         else:
-            super().alter_field(model, old_field, new_field, strict=strict)
+            super().alter_field(
+                model,
+                old_field,
+                new_field,
+                m2m_model=m2m_model,
+                strict=strict,
+            )
 
     def _remake_table(
-        self, model, create_field=None, delete_field=None, alter_fields=None
+        self,
+        model,
+        create_field=None,
+        delete_field=None,
+        alter_fields=None,
+        m2m_model=None,
     ):
         """
         Shortcut to transform a model from old_model into new_model
@@ -240,8 +264,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Add in any altered fields
         for alter_field in alter_fields:
             old_field, new_field = alter_field
-            body.pop(old_field.name, None)
-            mapping.pop(old_field.column, None)
+            if m2m_model and m2m_model._meta.has_conflicting_m2m_field:
+                pass
+            else:
+                body.pop(old_field.name, None)
+                mapping.pop(old_field.column, None)
             body[new_field.name] = new_field
             if old_field.null and not new_field.null:
                 case_sql = "coalesce(%(col)s, %(default)s)" % {
@@ -458,7 +485,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 )
             )
         # Alter by remaking table
-        self._remake_table(model, alter_fields=[(old_field, new_field)])
+        self._remake_table(
+            model,
+            alter_fields=[(old_field, new_field)],
+        )
         # Rebuild tables with FKs pointing to this field.
         old_collation = old_db_params.get("collation")
         new_collation = new_db_params.get("collation")
@@ -486,7 +516,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             for related_model in related_models:
                 self._remake_table(related_model)
 
-    def _alter_many_to_many(self, model, old_field, new_field, strict):
+    def _alter_many_to_many(self, model, old_field, new_field, strict, m2m_model=None):
         """Alter M2Ms to repoint their to= endpoints."""
         if (
             old_field.remote_field.through._meta.db_table
@@ -520,6 +550,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                         ),
                     ),
                 ],
+                m2m_model=m2m_model,
             )
             return
 

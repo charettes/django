@@ -1252,10 +1252,17 @@ def create_many_to_many_intermediary_model(field, klass):
     lazy_related_operation(set_managed, klass, to_model, name)
 
     to = make_model_tuple(to_model)[1]
+    to_app = make_model_tuple(to_model)[0]
     from_ = klass._meta.model_name
-    if to == from_:
+    has_conflicting_m2m_field = False
+
+    if to == from_ and to_app == klass._meta.app_label:
         to = "to_%s" % to
         from_ = "from_%s" % from_
+
+    if to == from_ and to_app != klass._meta.app_label:
+        to = "%s_%s" % (to_app, to)
+        has_conflicting_m2m_field = True
 
     meta = type(
         "Meta",
@@ -1271,6 +1278,7 @@ def create_many_to_many_intermediary_model(field, klass):
             "verbose_name_plural": _("%(from)s-%(to)s relationships")
             % {"from": from_, "to": to},
             "apps": field.model._meta.apps,
+            "has_conflicting_m2m_field": has_conflicting_m2m_field,
         },
     )
     # Construct and return the new class.

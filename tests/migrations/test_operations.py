@@ -1058,6 +1058,84 @@ class OperationTests(OperationTestBase):
             Pony._meta.get_field("riders").remote_field.through.objects.count(), 2
         )
 
+    def test_rename_model_same_name_different_app_with_m2m(self):
+        app_label_1 = "test_app_1"
+        app_label_2 = "test_app_2"
+        project_state = self.apply_operations(
+            app_label_1,
+            ProjectState(),
+            operations=[
+                migrations.CreateModel(
+                    "Rider",
+                    fields=[
+                        ("id", models.AutoField(primary_key=True)),
+                    ],
+                ),
+            ],
+        )
+
+        project_state = self.apply_operations(
+            app_label_2,
+            project_state,
+            operations=[
+                migrations.CreateModel(
+                    "Rider",
+                    fields=[
+                        ("id", models.AutoField(primary_key=True)),
+                        ("riders", models.ManyToManyField("test_app_1.Rider")),
+                    ],
+                ),
+            ],
+        )
+        Rider_1 = project_state.apps.get_model(app_label_1, "Rider")
+        Rider_2 = project_state.apps.get_model(app_label_2, "Rider")
+
+        m2m_table = f"{app_label_2}_rider_riders"
+        self.assertColumnExists(m2m_table, "rider_id")
+        self.assertColumnExists(m2m_table, "test_app_1_rider_id")
+
+        rider_1 = Rider_1.objects.create()
+        rider_2 = Rider_2.objects.create()
+        rider_2.riders.add(rider_1)
+
+        project_state_2 = project_state.clone()
+        project_state = self.apply_operations(
+            app_label_2,
+            project_state,
+            operations=[
+                migrations.RenameModel("Rider", "Pony"),
+            ],
+            atomic=connection.features.supports_atomic_references_rename,
+        )
+
+        Rider_1 = project_state.apps.get_model(app_label_1, "Rider")
+        Rider_2 = project_state.apps.get_model(app_label_2, "Pony")
+
+        m2m_table = f"{app_label_2}_pony_riders"
+        self.assertColumnExists(m2m_table, "pony_id")
+        self.assertColumnExists(m2m_table, "rider_id")
+
+        rider_1 = Rider_1.objects.create()
+        rider_2 = Rider_2.objects.create()
+        rider_2.riders.add(rider_1)
+        self.assertEqual(Rider_1.objects.count(), 2)
+        self.assertEqual(Rider_2.objects.count(), 2)
+        self.assertEqual(
+            Rider_2._meta.get_field("riders").remote_field.through.objects.count(), 2
+        )
+
+        # Reversal
+        self.unapply_operations(
+            app_label_2,
+            project_state_2,
+            operations=[
+                migrations.RenameModel("Rider", "Pony"),
+            ],
+        )
+        m2m_table = f"{app_label_2}_rider_riders"
+        self.assertColumnExists(m2m_table, "rider_id")
+        self.assertColumnExists(m2m_table, "test_app_1_rider_id")
+
     def test_rename_model_with_db_table_rename_m2m(self):
         app_label = "test_rmwdbrm2m"
         project_state = self.apply_operations(
