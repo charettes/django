@@ -774,14 +774,7 @@ class BaseDatabaseSchemaEditor:
             ):
                 self.deferred_sql.remove(sql)
 
-    def alter_field(
-        self,
-        model,
-        old_field,
-        new_field,
-        m2m_model=None,
-        strict=False,
-    ):
+    def alter_field(self, model, old_field, new_field, strict=False):
         """
         Allow a field's type, uniqueness, nullability, default, column,
         constraints, etc. to be modified.
@@ -832,14 +825,6 @@ class BaseDatabaseSchemaEditor:
                 "Cannot alter field %s into %s - they are not compatible types "
                 "(you cannot alter to or from M2M fields, or add or remove "
                 "through= on M2M fields)" % (old_field, new_field)
-            )
-        elif m2m_model is not None:
-            self._alter_many_to_many(
-                model,
-                old_field,
-                new_field,
-                strict,
-                m2m_model,
             )
 
         self._alter_field(
@@ -1326,7 +1311,7 @@ class BaseDatabaseSchemaEditor:
     def _comment_sql(self, comment):
         return self.quote_value(comment or "")
 
-    def _alter_many_to_many(self, model, old_field, new_field, strict, m2m_model=None):
+    def _alter_many_to_many(self, model, old_field, new_field, strict):
         """Alter M2Ms to repoint their to= endpoints."""
         # Rename the through table
         if (
@@ -1338,58 +1323,25 @@ class BaseDatabaseSchemaEditor:
                 old_field.remote_field.through._meta.db_table,
                 new_field.remote_field.through._meta.db_table,
             )
-
-        # To prevent duplicate fields error in case of same model names and
-        # different app labels.
-        if m2m_model != model:
-            self.alter_field(
-                new_field.remote_field.through,
-                # for self-referential models we need to alter field from
-                # the other end too
-                old_field.remote_field.through._meta.get_field(
-                    old_field.m2m_field_name()
-                ),
-                new_field.remote_field.through._meta.get_field(
-                    new_field.m2m_field_name()
-                ),
-            )
-            # Repoint the FK to the other side
-            self.alter_field(
-                new_field.remote_field.through,
-                # The field that points to the target model is needed, so we can
-                # tell alter_field to change it - this is m2m_reverse_field_name()
-                # (as opposed to m2m_field_name(), which points to our model).
-                old_field.remote_field.through._meta.get_field(
-                    old_field.m2m_reverse_field_name()
-                ),
-                new_field.remote_field.through._meta.get_field(
-                    new_field.m2m_reverse_field_name()
-                ),
-            )
-        else:
-            self.alter_field(
-                new_field.remote_field.through,
-                # The field that points to the target model is needed, so we can
-                # tell alter_field to change it - this is m2m_reverse_field_name()
-                # (as opposed to m2m_field_name(), which points to our model).
-                old_field.remote_field.through._meta.get_field(
-                    old_field.m2m_reverse_field_name()
-                ),
-                new_field.remote_field.through._meta.get_field(
-                    new_field.m2m_reverse_field_name()
-                ),
-            )
-            self.alter_field(
-                new_field.remote_field.through,
-                # for self-referential models we need to alter field from
-                # the other end too
-                old_field.remote_field.through._meta.get_field(
-                    old_field.m2m_field_name()
-                ),
-                new_field.remote_field.through._meta.get_field(
-                    new_field.m2m_field_name()
-                ),
-            )
+        # Repoint the FK to the other side
+        self.alter_field(
+            new_field.remote_field.through,
+            # The field that points to the target model is needed, so we can
+            # tell alter_field to change it - this is m2m_reverse_field_name()
+            # (as opposed to m2m_field_name(), which points to our model).
+            old_field.remote_field.through._meta.get_field(
+                old_field.m2m_reverse_field_name()
+            ),
+            new_field.remote_field.through._meta.get_field(
+                new_field.m2m_reverse_field_name()
+            ),
+        )
+        self.alter_field(
+            new_field.remote_field.through,
+            # for self-referential models we need to alter field from the other end too
+            old_field.remote_field.through._meta.get_field(old_field.m2m_field_name()),
+            new_field.remote_field.through._meta.get_field(new_field.m2m_field_name()),
+        )
 
     def _create_index_name(self, table_name, column_names, suffix=""):
         """

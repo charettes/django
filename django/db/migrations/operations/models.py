@@ -369,7 +369,6 @@ class RenameModel(ModelOperation):
 
     def database_forwards(self, app_label, schema_editor, from_state, to_state):
         new_model = to_state.apps.get_model(app_label, self.new_name)
-        m2m_model = None
         if self.allow_migrate_model(schema_editor.connection.alias, new_model):
             old_model = from_state.apps.get_model(app_label, self.old_name)
             # Move the main table
@@ -411,34 +410,40 @@ class RenameModel(ModelOperation):
                 # Rename the M2M table that's based on this model's name.
                 old_m2m_model = old_field.remote_field.through
                 new_m2m_model = new_field.remote_field.through
-
-                if old_m2m_model._meta.has_conflicting_m2m_field:
-                    m2m_model = old_m2m_model
-                elif new_m2m_model._meta.has_conflicting_m2m_field:
-                    m2m_model = new_m2m_model
-
+                schema_editor.alter_db_table(
+                    new_m2m_model,
+                    old_m2m_model._meta.db_table,
+                    new_m2m_model._meta.db_table,
+                )
                 # Rename the column in the M2M table that's based on this
                 # model's name.
-                if m2m_model is not None:
-                    schema_editor._alter_many_to_many(
+                if (old_field.related_model._meta.model_name == old_model._meta.model_name):
+                    schema_editor.alter_field(
                         new_m2m_model,
-                        old_field,
-                        new_field,
-                        strict=False,
-                        m2m_model=m2m_model,
+                        old_m2m_model._meta.get_field(f"from_{old_model._meta.model_name}"),
+                        new_m2m_model._meta.get_field(new_model._meta.model_name),
+                    )
+                    schema_editor.alter_field(
+                        new_m2m_model,
+                        old_m2m_model._meta.get_field(f"to_{old_model._meta.model_name}"),
+                        new_m2m_model._meta.get_field(new_field.related_model._meta.model_name),
+                    )
+                elif (new_field.related_model._meta.model_name == new_model._meta.model_name):
+                    schema_editor.alter_field(
+                        new_m2m_model,
+                        old_m2m_model._meta.get_field(old_model._meta.model_name),
+                        new_m2m_model._meta.get_field(f"from_{new_model._meta.model_name}"),
+                    )
+                    schema_editor.alter_field(
+                        new_m2m_model,
+                        old_m2m_model._meta.get_field(old_field.related_model._meta.model_name),
+                        new_m2m_model._meta.get_field(f"to_{new_field.related_model._meta.model_name}"),
                     )
                 else:
-                    schema_editor.alter_db_table(
-                        new_m2m_model,
-                        old_m2m_model._meta.db_table,
-                        new_m2m_model._meta.db_table,
-                    )
-
                     schema_editor.alter_field(
                         new_m2m_model,
                         old_m2m_model._meta.get_field(old_model._meta.model_name),
                         new_m2m_model._meta.get_field(new_model._meta.model_name),
-                        m2m_model=m2m_model,
                     )
 
     def database_backwards(self, app_label, schema_editor, from_state, to_state):

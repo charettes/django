@@ -55,7 +55,6 @@ DEFAULT_NAMES = (
     "default_manager_name",
     "indexes",
     "constraints",
-    "has_conflicting_m2m_field",
 )
 
 
@@ -159,9 +158,6 @@ class Options:
         self.apps = self.default_apps
 
         self.default_related_name = None
-        # True when two models in different apps have same name and one has
-        # m2m field to the other.
-        self.has_conflicting_m2m_field = False
 
     @property
     def label(self):

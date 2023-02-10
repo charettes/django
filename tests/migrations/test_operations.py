@@ -1091,8 +1091,8 @@ class OperationTests(OperationTestBase):
         Rider_2 = project_state.apps.get_model(app_label_2, "Rider")
 
         m2m_table = f"{app_label_2}_rider_riders"
-        self.assertColumnExists(m2m_table, "rider_id")
-        self.assertColumnExists(m2m_table, "test_app_1_rider_id")
+        self.assertColumnExists(m2m_table, "from_rider_id")
+        self.assertColumnExists(m2m_table, "to_rider_id")
 
         rider_1 = Rider_1.objects.create()
         rider_2 = Rider_2.objects.create()
@@ -1133,8 +1133,8 @@ class OperationTests(OperationTestBase):
             ],
         )
         m2m_table = f"{app_label_2}_rider_riders"
-        self.assertColumnExists(m2m_table, "rider_id")
-        self.assertColumnExists(m2m_table, "test_app_1_rider_id")
+        self.assertColumnExists(m2m_table, "from_rider_id")
+        self.assertColumnExists(m2m_table, "to_rider_id")
 
     def test_rename_model_with_db_table_rename_m2m(self):
         app_label = "test_rmwdbrm2m"
