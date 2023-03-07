@@ -2720,6 +2720,56 @@ class AutodetectorTests(BaseAutodetectorTests):
             changes, "testapp", 0, 0, model_name="author", constraint=added_constraint
         )
 
+    def test_add_constraints_with_new_model(self):
+        book = ModelState(
+            "otherapp",
+            "Book",
+            [
+                ("id", models.AutoField(primary_key=True)),
+                ("title", models.CharField(max_length=200)),
+            ],
+        )
+
+        category = ModelState(
+            "otherapp",
+            "Category",
+            [
+                ("id", models.AutoField(primary_key=True)),
+                ("name", models.CharField(max_length=200)),
+            ],
+        )
+
+        book_with_unique_title_and_category = ModelState(
+            "otherapp",
+            "Book",
+            [
+                ("id", models.AutoField(primary_key=True)),
+                ("title", models.CharField(max_length=200)),
+                ("category", models.ForeignKey("otherapp.Category", models.CASCADE)),
+            ],
+            {
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=["title", "category"],
+                        name="unique_title_category",
+                    )
+                ]
+            },
+        )
+
+        changes = self.get_changes(
+            [book],
+            [book_with_unique_title_and_category, category],
+        )
+
+        self.assertNumberMigrations(changes, "otherapp", 1)
+        self.assertOperationTypes(
+            changes,
+            "otherapp",
+            0,
+            ["CreateModel", "AddField", "AddConstraint"],
+        )
+
     def test_remove_constraints(self):
         """Test change detection of removed constraints."""
         changes = self.get_changes(

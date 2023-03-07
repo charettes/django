@@ -1367,13 +1367,39 @@ class MigrationAutodetector:
             app_label,
             model_name,
         ), alt_constraints in self.altered_constraints.items():
+            dependencies = []
+
             for constraint in alt_constraints["added_constraints"]:
+                model_state = self.to_state.models[app_label, model_name]
+
+                fields = list(model_state.fields.values())
+
+                fields += [
+                    field.remote_field
+                    for relations in self.to_state.relations[
+                        app_label, model_name
+                    ].values()
+                    for field in relations.values()
+                ]
+
+                for field in fields:
+                    if field.is_relation:
+                        dependencies.extend(
+                            self._get_dependencies_for_foreign_key(
+                                app_label,
+                                model_name,
+                                field,
+                                self.to_state,
+                            )
+                        )
+
                 self.add_operation(
                     app_label,
                     operations.AddConstraint(
                         model_name=model_name,
                         constraint=constraint,
                     ),
+                    dependencies=dependencies,
                 )
 
     def generate_removed_constraints(self):
