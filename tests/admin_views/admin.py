@@ -1184,7 +1184,7 @@ site.register(
     save_as=True,
     inlines=[ArticleInline],
     readonly_fields=["name_property"],
-    search_fields=["name"],
+    search_fields=["name", "article__title"],
 )
 site.register(ModelWithStringPrimaryKey)
 site.register(Color)

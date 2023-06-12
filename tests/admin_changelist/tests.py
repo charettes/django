@@ -487,10 +487,6 @@ class ChangeListTests(TestCase):
 
         # There's only one Group instance
         self.assertEqual(cl.result_count, 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_through_m2m_in_list_filter(self):
         """
@@ -511,10 +507,6 @@ class ChangeListTests(TestCase):
 
         # There's only one Group instance
         self.assertEqual(cl.result_count, 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_through_m2m_at_second_level_in_list_filter(self):
         """
@@ -536,10 +528,6 @@ class ChangeListTests(TestCase):
 
         # There's only one Concert instance
         self.assertEqual(cl.result_count, 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_inherited_m2m_in_list_filter(self):
         """
@@ -561,10 +549,6 @@ class ChangeListTests(TestCase):
 
         # There's only one Quartet instance
         self.assertEqual(cl.result_count, 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_m2m_to_inherited_in_list_filter(self):
         """
@@ -586,10 +570,6 @@ class ChangeListTests(TestCase):
 
         # There's only one ChordsBand instance
         self.assertEqual(cl.result_count, 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_non_unique_related_object_in_list_filter(self):
         """
@@ -606,12 +586,7 @@ class ChangeListTests(TestCase):
         request.user = self.superuser
 
         cl = m.get_changelist_instance(request)
-        # Exists() is applied.
         self.assertEqual(cl.queryset.count(), 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_changelist_search_form_validation(self):
         m = ConcertAdmin(Concert, custom_site)
@@ -643,12 +618,7 @@ class ChangeListTests(TestCase):
         request.user = self.superuser
 
         cl = m.get_changelist_instance(request)
-        # Exists() is applied.
         self.assertEqual(cl.queryset.count(), 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_no_duplicates_for_many_to_many_at_second_level_in_search_fields(self):
         """
@@ -669,10 +639,6 @@ class ChangeListTests(TestCase):
         cl = m.get_changelist_instance(request)
         # There's only one Concert instance
         self.assertEqual(cl.queryset.count(), 1)
-        # Queryset must be deletable.
-        self.assertIs(cl.queryset.query.distinct, False)
-        cl.queryset.delete()
-        self.assertEqual(cl.queryset.count(), 0)
 
     def test_multiple_search_fields(self):
         """
@@ -820,23 +786,23 @@ class ChangeListTests(TestCase):
         cl = m.get_changelist_instance(request)
         self.assertCountEqual(cl.queryset, [abcd])
 
-    def test_no_exists_for_m2m_in_list_filter_without_params(self):
+    def test_no_distinct_for_m2m_in_list_filter_without_params(self):
         """
         If a ManyToManyField is in list_filter but isn't in any lookup params,
-        the changelist's query shouldn't have Exists().
+        the changelist's query shouldn't have distinct.
         """
         m = BandAdmin(Band, custom_site)
         for lookup_params in ({}, {"name": "test"}):
             request = self.factory.get("/band/", lookup_params)
             request.user = self.superuser
             cl = m.get_changelist_instance(request)
-            self.assertNotIn(" EXISTS", str(cl.queryset.query))
+            self.assertFalse(cl.queryset.query.distinct)
 
-        # A ManyToManyField in params does have Exists() applied.
+        # A ManyToManyField in params does have distinct applied.
         request = self.factory.get("/band/", {"genres": "0"})
         request.user = self.superuser
         cl = m.get_changelist_instance(request)
-        self.assertIn(" EXISTS", str(cl.queryset.query))
+        self.assertTrue(cl.queryset.query.distinct)
 
     def test_pagination(self):
         """

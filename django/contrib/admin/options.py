@@ -1556,7 +1556,7 @@ class ModelAdmin(BaseModelAdmin):
         """
         return self._response_post_save(request, obj)
 
-    def response_action(self, request, queryset):
+    def response_action(self, request, changelist):
         """
         Handle an admin action. This is called if a request is POSTed to the
         changelist; it returns an HttpResponse if the action was handled, and
@@ -1606,6 +1606,11 @@ class ModelAdmin(BaseModelAdmin):
                 )
                 self.message_user(request, msg, messages.WARNING)
                 return None
+
+            remove_duplicates = getattr(func, "remove_duplicates", True)
+            queryset = changelist.get_queryset(
+                request, remove_duplicates=remove_duplicates
+            )
 
             if not select_across:
                 # Perform the action only on the selected objects
@@ -1977,9 +1982,7 @@ class ModelAdmin(BaseModelAdmin):
             and "_save" not in request.POST
         ):
             if selected:
-                response = self.response_action(
-                    request, queryset=cl.get_queryset(request)
-                )
+                response = self.response_action(request, changelist=cl)
                 if response:
                     return response
                 else:
@@ -2001,9 +2004,7 @@ class ModelAdmin(BaseModelAdmin):
             and "_save" not in request.POST
         ):
             if selected:
-                response = self.response_action(
-                    request, queryset=cl.get_queryset(request)
-                )
+                response = self.response_action(request, changelist=cl)
                 if response:
                     return response
                 else:

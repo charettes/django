@@ -1,4 +1,6 @@
-def action(function=None, *, permissions=None, description=None):
+def action(
+    function=None, *, permissions=None, description=None, remove_duplicates=True
+):
     """
     Conveniently add attributes to an action function::
 
@@ -23,6 +25,7 @@ def action(function=None, *, permissions=None, description=None):
             func.allowed_permissions = permissions
         if description is not None:
             func.short_description = description
+        func.remove_duplicates = remove_duplicates
         return func
 
     if function is None:

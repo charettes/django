@@ -29,7 +29,7 @@ from django.core.exceptions import (
     SuspiciousOperation,
 )
 from django.core.paginator import InvalidPage
-from django.db.models import Exists, F, Field, ManyToOneRel, OrderBy, OuterRef
+from django.db.models import F, Field, ManyToOneRel, OrderBy
 from django.db.models.expressions import Combinable
 from django.urls import reverse
 from django.utils.deprecation import RemovedInDjango60Warning
@@ -528,7 +528,7 @@ class ChangeList:
                 ordering_fields[idx] = "desc" if pfx == "-" else "asc"
         return ordering_fields
 
-    def get_queryset(self, request, exclude_parameters=None):
+    def get_queryset(self, request, exclude_parameters=None, remove_duplicates=True):
         # First, we collect all the declared list filters.
         (
             self.filter_specs,
@@ -579,9 +579,10 @@ class ChangeList:
             remove=self.get_filters_params(),
         )
         # Remove duplicates from results, if necessary
-        if filters_may_have_duplicates | search_may_have_duplicates:
-            qs = qs.filter(pk=OuterRef("pk"))
-            qs = self.root_queryset.filter(Exists(qs))
+        if remove_duplicates and (
+            filters_may_have_duplicates | search_may_have_duplicates
+        ):
+            qs = qs.distinct()
 
         # Set ordering.
         ordering = self.get_ordering(request, qs)

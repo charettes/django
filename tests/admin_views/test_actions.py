@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.views.main import IS_POPUP_VAR
@@ -17,6 +18,7 @@ from .models import (
     Book,
     ExternalSubscriber,
     Question,
+    Section,
     Subscriber,
     UnchangeableObject,
 )
@@ -78,6 +80,36 @@ class AdminActionsTest(TestCase):
             reverse("admin:admin_views_subscriber_changelist"), delete_confirmation_data
         )
         self.assertEqual(Subscriber.objects.count(), 0)
+
+    def test_model_admin_default_delete_action_duplicates(self):
+        section = Section.objects.create()
+        section.article_set.create(title="foo", date=date.today())
+        section.article_set.create(title="foobar", date=date.today())
+        action_data = {
+            ACTION_CHECKBOX_NAME: [section.pk],
+            "action": "delete_selected",
+            "index": 0,
+        }
+        delete_confirmation_data = {
+            ACTION_CHECKBOX_NAME: [section.pk],
+            "action": "delete_selected",
+            "post": "yes",
+        }
+        confirmation = self.client.post(
+            reverse("admin:admin_views_section_changelist") + "?q=foo", action_data
+        )
+        self.assertIsInstance(confirmation, TemplateResponse)
+        self.assertContains(
+            confirmation, "Are you sure you want to delete the selected sections?"
+        )
+        self.assertContains(confirmation, "<h2>Summary</h2>")
+        self.assertContains(confirmation, "<li>Sections: 1</li>")
+        self.assertContains(confirmation, "<li>Articles: 2</li>")
+        self.assertContains(confirmation, ACTION_CHECKBOX_NAME, count=2)
+        self.client.post(
+            reverse("admin:admin_views_section_changelist") + "?q=foo", delete_confirmation_data
+        )
+        self.assertEqual(Section.objects.count(), 0)
 
     def test_default_delete_action_nonexistent_pk(self):
         self.assertFalse(Subscriber.objects.filter(id=9998).exists())
