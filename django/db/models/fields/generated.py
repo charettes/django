@@ -32,6 +32,11 @@ class GeneratedField(Field):
         self.db_persist = db_persist
         super().__init__(**kwargs)
 
+    def get_col(self, alias, output_field=None):
+        if output_field is None:
+            output_field = self.output_field
+        return super().get_col(alias, output_field)
+
     def contribute_to_class(self, *args, **kwargs):
         super().contribute_to_class(*args, **kwargs)
 

@@ -1,6 +1,6 @@
 from django.core.exceptions import FieldError
 from django.db import IntegrityError, connection
-from django.db.models import F, GeneratedField, IntegerField
+from django.db.models import F, FloatField, GeneratedField, IntegerField, Model
 from django.db.models.functions import Lower
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
@@ -48,6 +48,25 @@ class BaseGeneratedFieldTests(SimpleTestCase):
         self.assertEqual(path, "django.db.models.GeneratedField")
         self.assertEqual(args, [])
         self.assertEqual(kwargs, {"db_persist": True, "expression": F("a") + F("b")})
+
+    def test_get_col(self):
+        class Square(Model):
+            side = IntegerField()
+            area = GeneratedField(expression=F("side") * F("side"), db_persist=True)
+
+        col = Square._meta.get_field("area").get_col("alias")
+        self.assertIsInstance(col.output_field, IntegerField)
+
+        class FloatSquare(Model):
+            side = IntegerField()
+            area = GeneratedField(
+                expression=F("side") * F("side"),
+                db_persist=True,
+                output_field=FloatField(),
+            )
+
+        col = FloatSquare._meta.get_field("area").get_col("alias")
+        self.assertIsInstance(col.output_field, FloatField)
 
 
 class GeneratedFieldTestMixin:
