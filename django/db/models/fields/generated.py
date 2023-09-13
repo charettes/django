@@ -40,7 +40,7 @@ class GeneratedField(Field):
         return Col(self.model._meta.db_table, self.output_field)
 
     def get_col(self, alias, output_field=None):
-        if alias != self.model._meta.db_table and (output_field is None):
+        if output_field is None:
             output_field = self.output_field
         return super().get_col(alias, output_field)
 
