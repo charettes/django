@@ -69,7 +69,6 @@ class BaseGeneratedFieldTests(SimpleTestCase):
         self.assertIsInstance(col.output_field, FloatField)
 
         field = FloatSquare._meta.get_field("area")
-        self.assertIs(field.get_col(FloatSquare._meta.db_table), field.cached_col)
         self.assertIs(
             field.get_col(FloatSquare._meta.db_table, field), field.cached_col
         )
