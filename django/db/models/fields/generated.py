@@ -1,6 +1,7 @@
 from django.core import checks
 from django.db import connections, router
 from django.db.models.sql import Query
+from django.utils.functional import cached_property
 
 from . import NOT_PROVIDED, Field
 
@@ -32,8 +33,14 @@ class GeneratedField(Field):
         self.db_persist = db_persist
         super().__init__(**kwargs)
 
+    @cached_property
+    def cached_col(self):
+        from django.db.models.expressions import Col
+
+        return Col(self.model._meta.db_table, self.output_field)
+
     def get_col(self, alias, output_field=None):
-        if output_field is None:
+        if alias != self.model._meta.db_table and (output_field is None):
             output_field = self.output_field
         return super().get_col(alias, output_field)
 

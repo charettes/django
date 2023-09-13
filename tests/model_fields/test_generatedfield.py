@@ -68,6 +68,17 @@ class BaseGeneratedFieldTests(SimpleTestCase):
         col = FloatSquare._meta.get_field("area").get_col("alias")
         self.assertIsInstance(col.output_field, FloatField)
 
+        field = FloatSquare._meta.get_field("area")
+        self.assertIs(field.get_col(FloatSquare._meta.db_table), field.cached_col)
+        self.assertIs(
+            field.get_col(FloatSquare._meta.db_table, field), field.cached_col
+        )
+        self.assertIsNot(field.get_col("alias"), field.cached_col)
+        self.assertIsNot(
+            field.get_col(FloatSquare._meta.db_table, FloatField()), field.cached_col
+        )
+        self.assertIsInstance(field.cached_col.output_field, FloatField)
+
 
 class GeneratedFieldTestMixin:
     def _refresh_if_needed(self, m):
