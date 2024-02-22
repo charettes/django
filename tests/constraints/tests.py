@@ -2,7 +2,7 @@ from unittest import mock
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, models
-from django.db.models import F
+from django.db.models import Case, F, When
 from django.db.models.constraints import BaseConstraint, UniqueConstraint
 from django.db.models.functions import Lower
 from django.db.transaction import atomic
@@ -1045,6 +1045,35 @@ class UniqueConstraintTests(TestCase):
             )
         is_not_null_constraint.validate(Product, Product(price=4, discounted_price=3))
         is_not_null_constraint.validate(Product, Product(price=2, discounted_price=1))
+
+    def test_validate_conditional_expression(self):
+        constraint = models.UniqueConstraint(
+            Case(When(color__isnull=True, then=Lower("name"))),
+            name="name_lower_without_color_uniq",
+        )
+        non_unique_product = UniqueConstraintProduct(name=self.p2.name.upper())
+        msg = "Constraint “name_lower_without_color_uniq” is violated."
+        with self.assertRaisesMessage(ValidationError, msg):
+            constraint.validate(UniqueConstraintProduct, non_unique_product)
+        # Values not matching condition are ignored.
+        constraint.validate(
+            UniqueConstraintProduct,
+            UniqueConstraintProduct(name=self.p1.name, color=self.p1.color),
+        )
+        # Existing instances have their existing row excluded.
+        constraint.validate(UniqueConstraintProduct, self.p2)
+        # Unique field is excluded.
+        constraint.validate(
+            UniqueConstraintProduct,
+            non_unique_product,
+            exclude={"name"},
+        )
+        # Field from a condition is excluded.
+        constraint.validate(
+            UniqueConstraintProduct,
+            non_unique_product,
+            exclude={"color"},
+        )
 
     def test_name(self):
         constraints = get_constraints(UniqueConstraintProduct._meta.db_table)

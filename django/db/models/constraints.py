@@ -4,7 +4,7 @@ from types import NoneType
 
 from django.core.exceptions import FieldError, ValidationError
 from django.db import connections
-from django.db.models.expressions import Exists, ExpressionList, F, OrderBy
+from django.db.models.expressions import Exists, ExpressionList, F, OrderBy, Value
 from django.db.models.indexes import IndexExpression
 from django.db.models.lookups import Exact
 from django.db.models.query_utils import Q
@@ -174,6 +174,28 @@ class Deferrable(Enum):
     # A similar format was proposed for Python 3.10.
     def __repr__(self):
         return f"{self.__class__.__qualname__}.{self._name_}"
+
+
+class Replacements(dict):
+    def __init__(self, queryset, replacements):
+        self.query = queryset.query
+        super().__init__(replacements)
+
+    def __bool__(self):
+        # Since lookups are generated on the fly it can never be considered empty.
+        return True
+
+    def replace_lookup(self, rhs, lhs):
+        lookups, parts, _ = self.query.solve_lookup_type(rhs)
+        if len(parts) > 1:
+            raise FieldError("Joined field references are not permitted in constraints")
+        replacement = self.get(F(parts[0]))
+        # XXX: Can this happen?
+        if replacement is None:
+            return (rhs, lhs)
+        value = self.query.resolve_lookup_value(lhs, None, False)
+        lookup = self.query.build_lookup(lookups, replacement, value)
+        return lookup
 
 
 class UniqueConstraint(BaseConstraint):
@@ -421,12 +443,15 @@ class UniqueConstraint(BaseConstraint):
                                 return
                     elif isinstance(expression, F) and expression.name in exclude:
                         return
-            replacements = {
-                F(field): value
-                for field, value in instance._get_field_value_map(
-                    meta=model._meta, exclude=exclude
-                ).items()
-            }
+            replacements = Replacements(
+                queryset,
+                {
+                    F(field): value
+                    for field, value in instance._get_field_value_map(
+                        meta=model._meta, exclude=exclude
+                    ).items()
+                },
+            )
             expressions = []
             for expr in self.expressions:
                 # Ignore ordering.

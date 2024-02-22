@@ -105,8 +105,11 @@ class Q(tree.Node):
         """
         yield self
         for child in self.children:
+            from django.db.models import F
+
             if isinstance(child, tuple):
                 # Use the lookup.
+                yield F(child[0].split("__")[0])
                 child = child[1]
             if hasattr(child, "flatten"):
                 yield from child.flatten()
@@ -166,6 +169,18 @@ class Q(tree.Node):
             else:
                 identity.append(child)
         return tuple(identity)
+
+    def replace_expressions(self, replacements):
+        if not replacements:
+            return self
+        children = []
+        for child in self.children:
+            if isinstance(child, (tuple, list)):
+                child = replacements.replace_lookup(*child)
+            elif replace_child_expressions := getattr(child, "replace_expressions"):
+                child = replace_child_expressions(replacements)
+            children.append(child)
+        return self.create(children, self.connector, self.negated)
 
     def __eq__(self, other):
         if not isinstance(other, Q):
