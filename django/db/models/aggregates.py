@@ -2,10 +2,11 @@
 Classes to represent the definitions of aggregate functions.
 """
 
+from typing import Any
 from django.core.exceptions import FieldError, FullResultSet
 from django.db import NotSupportedError
 from django.db.models.expressions import Case, Func, OrderByList, Star, Value, When
-from django.db.models.fields import IntegerField
+from django.db.models.fields import IntegerField, TextField
 from django.db.models.functions.comparison import Coalesce
 from django.db.models.functions.mixins import (
     FixDurationInputMixin,
@@ -241,3 +242,37 @@ class Variance(NumericOutputFieldMixin, Aggregate):
 
     def _get_repr_options(self):
         return {**super()._get_repr_options(), "sample": self.function == "VAR_SAMP"}
+
+
+class StringAgg(Aggregate):
+    function = "STRING_AGG"
+    allow_distinct = True
+    allow_order_by = True
+    output_field = TextField()
+
+    def __init__(self, expression, delimiter, **extra):
+        super().__init__(expression, delimiter, **extra)
+
+    def as_mysql(self, compiler, connection):
+        expr = self.copy()
+        expression, delimiter, *options = expr.get_source_expressions()
+        expr.set_source_expressions([expression] + options)
+        separator_sql, separator_params = compiler.compile(delimiter)
+        sql, params = expr.as_sql(
+            compiler,
+            connection,
+            template="GROUP_CONCAT(%(distinct)s%(expressions)s%(order_by)s SEPARATOR %(separator)s)",
+            separator=separator_sql,
+        )
+        return sql, (*params, *separator_params)
+
+    def as_oracle(self, compiler, connection):
+        expr = self
+        if expr.order_by is not None:
+            expr = expr.copy()
+            expr.order_by.extra["template"] = " WITHIN GROUP (ORDER BY %(expressions)s)"
+        return expr.as_sql(
+            compiler,
+            connection,
+            template="LIST_AGG(%(distinct)s%(expressions)s)%(order_by)s",
+        )

@@ -1,5 +1,6 @@
 from django.contrib.postgres.fields import ArrayField
 from django.db.models import Aggregate, BooleanField, JSONField, TextField, Value
+from django.db.models.aggregates import StringAgg as _StringAgg
 
 from .mixins import OrderableAggMixin
 
@@ -52,11 +53,9 @@ class JSONBAgg(OrderableAggMixin, Aggregate):
     output_field = JSONField()
 
 
-class StringAgg(OrderableAggMixin, Aggregate):
-    function = "STRING_AGG"
-    allow_distinct = True
-    output_field = TextField()
-
+class StringAgg(OrderableAggMixin, _StringAgg):
     def __init__(self, expression, delimiter, **extra):
-        delimiter_expr = Value(str(delimiter))
-        super().__init__(expression, delimiter_expr, **extra)
+        if isinstance(delimiter, str):
+            # XXX: warnings.warn
+            delimiter = Value(str(delimiter))
+        super().__init__(expression, delimiter, **extra)
