@@ -3,7 +3,8 @@ Classes to represent the definitions of aggregate functions.
 """
 
 from django.core.exceptions import FieldError, FullResultSet
-from django.db.models.expressions import Case, Func, Star, Value, When
+from django.db import NotSupportedError
+from django.db.models.expressions import Case, Func, OrderByList, Star, Value, When
 from django.db.models.fields import IntegerField
 from django.db.models.functions.comparison import Coalesce
 from django.db.models.functions.mixins import (
@@ -23,39 +24,66 @@ __all__ = [
 ]
 
 
+class AggregateFilter(Func):
+    arity = 1
+    template = " FILTER (WHERE %(expressions)s)"
+
+    def as_sql(self, compiler, connection, **extra_context):
+        if not connection.features.supports_aggregate_filter_clause:
+            raise NotSupportedError
+        try:
+            return super().as_sql(compiler, connection, **extra_context)
+        except FullResultSet:
+            return "", ()
+
+
+class AggregateOrderBy(OrderByList):
+    template = " ORDER BY %(expressions)s"
+
+
 class Aggregate(Func):
-    template = "%(function)s(%(distinct)s%(expressions)s)"
+    template = "%(function)s(%(distinct)s%(expressions)s%(order_by)s)%(filter)s"
     contains_aggregate = True
     name = None
-    filter_template = "%s FILTER (WHERE %%(filter)s)"
     window_compatible = True
     allow_distinct = False
+    allow_order_by = False
     empty_result_set_value = None
 
     def __init__(
-        self, *expressions, distinct=False, filter=None, default=None, **extra
+        self,
+        *expressions,
+        distinct=False,
+        filter=None,
+        default=None,
+        order_by=None,
+        **extra,
     ):
         if distinct and not self.allow_distinct:
             raise TypeError("%s does not allow distinct." % self.__class__.__name__)
         if default is not None and self.empty_result_set_value is not None:
             raise TypeError(f"{self.__class__.__name__} does not allow default.")
+        if order_by and not self.allow_order_by:
+            raise TypeError("%s does not allow order_by." % self.__class__.__name__)
         self.distinct = distinct
-        self.filter = filter
+        self.filter = filter and AggregateFilter(filter)
         self.default = default
+        self.order_by = order_by and AggregateOrderBy.from_param(
+            f"{self.__class__.__name__}.order_by", order_by
+        )
         super().__init__(*expressions, **extra)
 
     def get_source_fields(self):
-        # Don't return the filter expression since it's not a source field.
+        # Don't consider filter and order by expression as they have nothing
+        # to do with the output field resolution.
         return [e._output_field_or_none for e in super().get_source_expressions()]
 
     def get_source_expressions(self):
         source_expressions = super().get_source_expressions()
-        if self.filter:
-            return source_expressions + [self.filter]
-        return source_expressions
+        return source_expressions + [self.filter, self.order_by]
 
     def set_source_expressions(self, exprs):
-        self.filter = self.filter and exprs.pop()
+        *exprs, self.filter, self.order_by = exprs
         return super().set_source_expressions(exprs)
 
     def resolve_expression(
@@ -64,6 +92,9 @@ class Aggregate(Func):
         # Aggregates are not allowed in UPDATE queries, so ignore for_save
         c = super().resolve_expression(query, allow_joins, reuse, summarize)
         c.filter = c.filter and c.filter.resolve_expression(
+            query, allow_joins, reuse, summarize
+        )
+        c.order_by = c.order_by and c.order_by.resolve_expression(
             query, allow_joins, reuse, summarize
         )
         if summarize:
@@ -104,7 +135,9 @@ class Aggregate(Func):
 
     @property
     def default_alias(self):
-        expressions = self.get_source_expressions()
+        expressions = [
+            expr for expr in self.get_source_expressions() if expr is not None
+        ]
         if len(expressions) == 1 and hasattr(expressions[0], "name"):
             return "%s__%s" % (expressions[0].name, self.name.lower())
         raise TypeError("Complex expressions require an alias")
@@ -113,35 +146,32 @@ class Aggregate(Func):
         return []
 
     def as_sql(self, compiler, connection, **extra_context):
-        extra_context["distinct"] = "DISTINCT " if self.distinct else ""
+        distinct_sql = "DISTINCT " if self.distinct else ""
+        order_by_sql = ""
+        order_by_params = []
+        if (order_by := self.order_by) is not None:
+            order_by_sql, order_by_params = compiler.compile(order_by)
+        filter_sql = ""
+        filter_params = []
         if self.filter:
-            if connection.features.supports_aggregate_filter_clause:
-                try:
-                    filter_sql, filter_params = self.filter.as_sql(compiler, connection)
-                except FullResultSet:
-                    pass
-                else:
-                    template = self.filter_template % extra_context.get(
-                        "template", self.template
-                    )
-                    sql, params = super().as_sql(
-                        compiler,
-                        connection,
-                        template=template,
-                        filter=filter_sql,
-                        **extra_context,
-                    )
-                    return sql, (*params, *filter_params)
-            else:
+            try:
+                filter_sql, filter_params = compiler.compile(self.filter)
+            except NotSupportedError:
+                # Fallback to a CASE statement on backends that don't
+                # support the FILTER clause.
                 copy = self.copy()
                 copy.filter = None
                 source_expressions = copy.get_source_expressions()
                 condition = When(self.filter, then=source_expressions[0])
                 copy.set_source_expressions([Case(condition)] + source_expressions[1:])
-                return super(Aggregate, copy).as_sql(
-                    compiler, connection, **extra_context
-                )
-        return super().as_sql(compiler, connection, **extra_context)
+                return copy.as_sql(compiler, connection, **extra_context)
+        extra_context.update(
+            distinct=distinct_sql,
+            filter=filter_sql,
+            order_by=order_by_sql,
+        )
+        sql, params = super().as_sql(compiler, connection, **extra_context)
+        return sql, (*params, *order_by_params, *filter_params)
 
     def _get_repr_options(self):
         options = super()._get_repr_options()
@@ -149,6 +179,8 @@ class Aggregate(Func):
             options["distinct"] = self.distinct
         if self.filter:
             options["filter"] = self.filter
+        if self.order_by:
+            options["order_by"] = self.order_by
         return options
 
 

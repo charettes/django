@@ -12,7 +12,7 @@ from django.db.models import (
     Window,
 )
 from django.db.models.fields.json import KeyTextTransform, KeyTransform
-from django.db.models.functions import Cast, Concat, Substr
+from django.db.models.functions import Cast, Concat, LPad, Substr
 from django.test import skipUnlessDBFeature
 from django.test.utils import Approximate
 from django.utils import timezone
@@ -187,6 +187,16 @@ class TestGeneralAggregate(PostgreSQLTestCase):
                     arrayagg=ArrayAgg("char_field", ordering=ordering)
                 )
                 self.assertEqual(values, {"arrayagg": expected_output})
+
+    def test_array_agg_filter_and_ordering_params(self):
+        values = AggregateTestModel.objects.aggregate(
+            arrayagg=ArrayAgg(
+                "char_field",
+                filter=Q(json_field__has_key="lang"),
+                ordering=LPad(Cast("integer_field", CharField()), 2, Value("0")),
+            )
+        )
+        self.assertEqual(values, {"arrayagg": ["Foo2", "Foo4"]})
 
     def test_array_agg_integerfield(self):
         values = AggregateTestModel.objects.aggregate(
