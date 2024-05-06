@@ -79,7 +79,7 @@ from django.db.models import Manager, Q, Window, signals
 from django.db.models.fields.fetching import get_fetching_mode
 from django.db.models.functions import RowNumber
 from django.db.models.lookups import GreaterThan, LessThanOrEqual
-from django.db.models.query import Prefetch, QuerySet, prefetch_related_objects
+from django.db.models.query import QuerySet, prefetch_related_objects
 from django.db.models.query_utils import DeferredAttribute
 from django.db.models.utils import AltersData, resolve_callables
 from django.utils.deprecation import RemovedInDjango60Warning
@@ -271,10 +271,8 @@ class ForwardManyToOneDescriptor:
         self.field.set_cached_value(instance, self.get_object(instance))
 
     def fetch_many(self, instances):
-        prefetch_related_objects(
-            [i for i in instances if not self.is_cached(i)],
-            Prefetch(self.field.name, queryset=self.get_queryset()),
-        )
+        missing_instances = [i for i in instances if not self.is_cached(i)]
+        prefetch_related_objects(missing_instances, self.field.name)
 
     def __set__(self, instance, value):
         """
@@ -546,10 +544,10 @@ class ReverseOneToOneDescriptor:
         self.related.set_cached_value(instance, rel_obj)
 
     def fetch_many(self, instances):
-        qs = self.get_queryset()
+        missing_instances = [i for i in instances if not self.is_cached(i)]
         prefetch_related_objects(
-            [i for i in instances if not self.is_cached(i)],
-            Prefetch(self.related.get_accessor_name(), queryset=qs),
+            missing_instances,
+            self.related.get_accessor_name(),
         )
 
     def __set__(self, instance, value):
