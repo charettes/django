@@ -267,18 +267,14 @@ class ForwardManyToOneDescriptor:
         else:
             return rel_obj
 
-    def fetch(self, instances):
-        instances = [i for i in instances if not self.is_cached(i)]
-        if len(instances) == 1:
-            # Kept for backwards compatibility with overridden
-            # get_reverse_related_filter() or get_extra_descriptor_filter()
-            instance = instances[0]
-            setattr(instance, self.field.name, self.get_object(instance))
-        else:
-            prefetch_related_objects(
-                instances,
-                Prefetch(self.field.name, queryset=self.get_queryset()),
-            )
+    def fetch(self, instance):
+        self.field.set_cached_value(instance, self.get_object(instance))
+
+    def fetch_many(self, instances):
+        prefetch_related_objects(
+            [i for i in instances if not self.is_cached(i)],
+            Prefetch(self.field.name, queryset=self.get_queryset()),
+        )
 
     def __set__(self, instance, value):
         """
@@ -537,25 +533,24 @@ class ReverseOneToOneDescriptor:
         else:
             return rel_obj
 
-    def fetch(self, instances):
-        instances = [i for i in instances if not self.is_cached(i)]
-        if len(instances) == 1:
-            # Kept for backwards compatibility with overridden
-            # get_forward_related_filter()
-            instance = instances[0]
-            filter_args = self.related.field.get_forward_related_filter(instance)
-            try:
-                rel_obj = self.get_queryset(instance=instance).get(**filter_args)
-            except self.related.related_model.DoesNotExist:
-                rel_obj = None
-            else:
-                self.related.field.set_cached_value(rel_obj, instance)
-            self.related.set_cached_value(instance, rel_obj)
+    def fetch(self, instance):
+        # Kept for backwards compatibility with overridden
+        # get_forward_related_filter()
+        filter_args = self.related.field.get_forward_related_filter(instance)
+        try:
+            rel_obj = self.get_queryset(instance=instance).get(**filter_args)
+        except self.related.related_model.DoesNotExist:
+            rel_obj = None
         else:
-            qs = self.get_queryset()
-            prefetch_related_objects(
-                instances, Prefetch(self.related.get_accessor_name(), queryset=qs)
-            )
+            self.related.field.set_cached_value(rel_obj, instance)
+        self.related.set_cached_value(instance, rel_obj)
+
+    def fetch_many(self, instances):
+        qs = self.get_queryset()
+        prefetch_related_objects(
+            [i for i in instances if not self.is_cached(i)],
+            Prefetch(self.related.get_accessor_name(), queryset=qs),
+        )
 
     def __set__(self, instance, value):
         """
