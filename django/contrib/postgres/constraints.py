@@ -183,7 +183,7 @@ class ExclusionConstraint(BaseConstraint):
         )
         replacements = {F(field): value for field, value in replacement_map.items()}
         lookups = []
-        for idx, (expression, operator) in enumerate(self.expressions):
+        for expression, operator in self.expressions:
             if isinstance(expression, str):
                 expression = F(expression)
             if exclude:
