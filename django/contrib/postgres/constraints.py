@@ -186,14 +186,8 @@ class ExclusionConstraint(BaseConstraint):
         for expression, operator in self.expressions:
             if isinstance(expression, str):
                 expression = F(expression)
-            if exclude:
-                if isinstance(expression, F):
-                    if expression.name in exclude:
-                        return
-                else:
-                    for expr in expression.flatten():
-                        if isinstance(expr, F) and expr.name in exclude:
-                            return
+            if exclude and self._expression_refs_exclude(model, expression, exclude):
+                return
             rhs_expression = expression.replace_expressions(replacements)
             if hasattr(expression, "get_expression_for_validation"):
                 expression = expression.get_expression_for_validation()

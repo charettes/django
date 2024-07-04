@@ -68,6 +68,13 @@ class BaseConstraint:
     def remove_sql(self, model, schema_editor):
         raise NotImplementedError("This method must be implemented by a subclass.")
 
+    @classmethod
+    def _expression_refs_exclude(cls, model, expression, exclude):
+        for field_name, *_ in model._get_expr_references(expression):
+            if field_name in exclude:
+                return True
+        return False
+
     def validate(self, model, instance, exclude=None, using=DEFAULT_DB_ALIAS):
         raise NotImplementedError("This method must be implemented by a subclass.")
 
@@ -628,14 +635,11 @@ class UniqueConstraint(BaseConstraint):
             queryset = queryset.filter(**lookup_kwargs)
         else:
             # Ignore constraints with excluded fields.
-            if exclude:
-                for expression in self.expressions:
-                    if hasattr(expression, "flatten"):
-                        for expr in expression.flatten():
-                            if isinstance(expr, F) and expr.name in exclude:
-                                return
-                    elif isinstance(expression, F) and expression.name in exclude:
-                        return
+            if exclude and any(
+                self._expression_refs_exclude(model, expr, exclude)
+                for expr in self.expressions
+            ):
+                return
             replacements = {
                 F(field): value
                 for field, value in instance._get_field_value_map(
