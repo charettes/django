@@ -70,8 +70,14 @@ class BaseConstraint:
 
     @classmethod
     def _expression_refs_exclude(cls, model, expression, exclude):
+        get_field = model._meta.get_field
         for field_name, *_ in model._get_expr_references(expression):
             if field_name in exclude:
+                return True
+            field = get_field(field_name)
+            if field.generated and cls._expression_refs_exclude(
+                model, field.expression, exclude
+            ):
                 return True
         return False
 
@@ -617,6 +623,12 @@ class UniqueConstraint(BaseConstraint):
                 if exclude and field_name in exclude:
                     return
                 field = model._meta.get_field(field_name)
+                if (
+                    exclude
+                    and field.generated
+                    and self._expression_refs_exclude(model, field.expression, exclude)
+                ):
+                    return
                 lookup_value = getattr(instance, field.attname)
                 if (
                     self.nulls_distinct is not False

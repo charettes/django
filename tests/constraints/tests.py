@@ -383,6 +383,35 @@ class CheckConstraintTests(TestCase):
         with self.assertRaisesMessage(ValidationError, msg):
             json_exact_constraint.validate(JSONFieldModel, JSONFieldModel(data=data))
 
+    def test_validate_generated_field(self):
+        valid_products = [
+            Product(price=50),
+            Product(price=50, discounted_price=20),
+        ]
+        rebate_constraint = models.CheckConstraint(
+            condition=models.Q(rebate__range=(0, 100)),
+            name="bounded_rebate",
+        )
+        for product in valid_products:
+            with self.subTest(product=product):
+                rebate_constraint.validate(Product, product)
+
+        invalid_products = [
+            Product(price=1200, discounted_price=500),
+            Product(price=20, discounted_price=50),
+        ]
+        msg = f"Constraint “{rebate_constraint.name}” is violated."
+        for product in invalid_products:
+            with (
+                self.subTest(product=product),
+                self.assertRaisesMessage(ValidationError, msg),
+            ):
+                rebate_constraint.validate(Product, product)
+
+        # Excluding referenced of generated field should skip validation.
+        rebate_constraint.validate(Product, invalid_products[0], exclude={"price"})
+        rebate_constraint.validate(Product, invalid_products[0], exclude={"rebate"})
+
     def test_check_deprecation(self):
         msg = "CheckConstraint.check is deprecated in favor of `.condition`."
         condition = models.Q(foo="bar")

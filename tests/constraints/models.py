@@ -5,6 +5,16 @@ class Product(models.Model):
     price = models.IntegerField(null=True)
     discounted_price = models.IntegerField(null=True)
     unit = models.CharField(max_length=15, null=True)
+    rebate = models.GeneratedField(
+        expression=(
+            models.functions.Coalesce("price", 0)
+            - models.functions.Coalesce(
+                "discounted_price", models.functions.Coalesce("price", 0)
+            )
+        ),
+        output_field=models.IntegerField(),
+        db_persist=True,
+    )
 
     class Meta:
         required_db_features = {
