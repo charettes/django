@@ -2028,13 +2028,12 @@ class SQLUpdateCompiler(SQLCompiler):
         self.query.get_initial_alias()
         return self.query.count_active_tables() == 1
 
-    def get_update_values(self, include_alias=False):
+    def get_update_values(self, allow_join=False):
         values, update_params = [], []
-        alias = self.query.get_initial_alias() if include_alias else None
         for field, model, val in self.query.values:
             if hasattr(val, "resolve_expression"):
                 val = val.resolve_expression(
-                    self.query, allow_joins=False, for_save=True
+                    self.query, allow_joins=allow_join, for_save=True
                 )
                 if val.contains_aggregate:
                     raise FieldError(
@@ -2067,7 +2066,10 @@ class SQLUpdateCompiler(SQLCompiler):
                 placeholder = field.get_placeholder(val, self, self.connection)
             else:
                 placeholder = "%s"
-            col = field.get_col(alias)
+            if allow_join:
+                col = self.query.resolve_ref(field.name)
+            else:
+                col = field.get_col(None)
             col_sql, col_params = self.compile(col)
             update_params.extend(col_params)
             if hasattr(val, "as_sql"):
