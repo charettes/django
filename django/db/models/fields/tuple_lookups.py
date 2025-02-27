@@ -5,6 +5,7 @@ from django.db.models import Field
 from django.db.models.expressions import (
     ColPairs,
     Func,
+    RawSQL,
     ResolvedOuterRef,
     Subquery,
     Value,
@@ -307,7 +308,7 @@ class TupleIn(TupleLookupMixin, In):
             )
 
     def check_rhs_is_query(self):
-        if not isinstance(self.rhs, (Query, Subquery)):
+        if not isinstance(self.rhs, (Query, Subquery, RawSQL)):
             lhs_str = self.get_lhs_str()
             rhs_cls = self.rhs.__class__.__name__
             raise ValueError(

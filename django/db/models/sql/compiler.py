@@ -2012,7 +2012,7 @@ class SQLDeleteCompiler(SQLCompiler):
         pk = self.query.model._meta.pk
         innerq.select = [pk.get_col(self.query.get_initial_alias())]
         outerq = Query(self.query.model)
-        if not self.connection.features.update_can_self_select:
+        if not self.connection.features.delete_can_self_reference_subquery:
             # Force the materialization of the inner query to allow reference
             # to the target table on MySQL.
             sql, params = innerq.get_compiler(connection=self.connection).as_sql()
@@ -2151,20 +2151,17 @@ class SQLUpdateCompiler(SQLCompiler):
         query.add_fields(fields)
         super().pre_sql_setup()
 
-        is_composite_pk = meta.is_composite_pk
-        must_pre_select = (
-            count > 1 and not self.connection.features.update_can_self_select
-        )
-
         # Now we adjust the current query: reset the where clause and get rid
         # of all the tables we don't need (since they're in the sub-select).
         self.query.clear_where()
-        if self.query.related_updates or must_pre_select:
-            # Either we're using the idents in multiple update queries (so
-            # don't want them to change), or the db backend doesn't support
-            # selecting from the updating table (e.g. MySQL).
+        if self.query.related_updates:
+            # The idents are used in multiple update queries (so we don't want
+            # them to change). This should use RETURNING instead on backends
+            # that support it to avoid 2 queries per MTI base or use CTEs to
+            # perform all the updates in a single query.
             idents = []
             related_ids = collections.defaultdict(list)
+            is_composite_pk = meta.is_composite_pk
             for rows in query.get_compiler(self.using).execute_sql(MULTI):
                 pks = [row if is_composite_pk else row[0] for row in rows]
                 idents.extend(pks)
@@ -2173,6 +2170,11 @@ class SQLUpdateCompiler(SQLCompiler):
             self.query.add_filter("pk__in", idents)
             self.query.related_ids = related_ids
         else:
+            if not self.connection.features.update_can_self_select:
+                # Force the materialization of the inner query to allow reference
+                # to the target table on MySQL.
+                sql, params = query.get_compiler(connection=self.connection).as_sql()
+                query = RawSQL("SELECT * FROM (%s) subquery" % sql, params)
             # The fast path. Filters and updates in one query.
             self.query.add_filter("pk__in", query)
         self.query.reset_refcounts(refcounts_before)
