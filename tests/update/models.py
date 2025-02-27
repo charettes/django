@@ -15,7 +15,7 @@ class DataPoint(models.Model):
 
 class RelatedPoint(models.Model):
     name = models.CharField(max_length=20)
-    data = models.ForeignKey(DataPoint, models.CASCADE)
+    data = models.ForeignKey(DataPoint, models.CASCADE, related_name="related_points")
 
 
 class A(models.Model):

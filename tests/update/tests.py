@@ -113,6 +113,26 @@ class AdvancedTests(TestCase):
         resp = RelatedPoint.objects.filter(data__name="d0")
         self.assertEqual(list(resp), [self.r1])
 
+    def test_update_filter_single_valued(self):
+        with self.assertNumQueries(1):
+            updated = RelatedPoint.objects.filter(data__name="d3").update(
+                name="updated"
+            )
+        self.assertEqual(updated, 1)
+        self.assertEqual(RelatedPoint.objects.get(name="updated"), self.r1)
+
+    def test_update_filter_multi_valued(self):
+        RelatedPoint.objects.create(name="r2", data=self.d3)
+        with self.assertNumQueries(1):
+            updated = DataPoint.objects.filter(
+                related_points__name__in=["r1", "r2"]
+            ).update(name="updated")
+        # Ensure that even if multiple DataPoint rows are spawned from the
+        # multi-valued filter against RelatedPoint on backends that use a
+        # variant of UPDATE FROM tuples are uniquely updated.
+        self.assertEqual(updated, 1)
+        self.assertEqual(DataPoint.objects.get(name="updated"), self.d3)
+
     def test_update_multiple_fields(self):
         """
         Multiple fields can be updated at once
@@ -199,11 +219,11 @@ class AdvancedTests(TestCase):
         Update of a queryset that's been annotated and involves multiple tables.
         """
         # Trivial annotated update
-        qs = DataPoint.objects.annotate(related_count=Count("relatedpoint"))
+        qs = DataPoint.objects.annotate(related_count=Count("related_points"))
         with self.assertNumQueries(1):
             self.assertEqual(qs.update(value="Foo"), 3)
         # Update where annotation is used for filtering
-        qs = DataPoint.objects.annotate(related_count=Count("relatedpoint"))
+        qs = DataPoint.objects.annotate(related_count=Count("related_points"))
         with self.assertNumQueries(1):
             self.assertEqual(qs.filter(related_count=1).update(value="Foo"), 1)
         # Update where aggregation annotation is used in update parameters

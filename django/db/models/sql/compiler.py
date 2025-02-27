@@ -1966,7 +1966,7 @@ class SQLDeleteCompiler(SQLCompiler):
     def single_alias(self):
         # Ensure base table is in aliases.
         self.query.get_initial_alias()
-        return sum(self.query.alias_refcount[t] > 0 for t in self.query.alias_map) == 1
+        return self.query.count_active_tables() == 1
 
     @classmethod
     def _expr_refs_base_model(cls, expr, base_model):
@@ -2022,16 +2022,15 @@ class SQLDeleteCompiler(SQLCompiler):
 
 
 class SQLUpdateCompiler(SQLCompiler):
-    def as_sql(self):
-        """
-        Create the SQL for this query. Return the SQL string and list of
-        parameters.
-        """
-        self.pre_sql_setup()
-        if not self.query.values:
-            return "", ()
-        qn = self.quote_name_unless_alias
+    @cached_property
+    def single_alias(self):
+        # Ensure base table is in aliases.
+        self.query.get_initial_alias()
+        return self.query.count_active_tables() == 1
+
+    def get_update_values(self, include_alias=False):
         values, update_params = [], []
+        alias = self.query.get_initial_alias() if include_alias else None
         for field, model, val in self.query.values:
             if hasattr(val, "resolve_expression"):
                 val = val.resolve_expression(
@@ -2068,28 +2067,41 @@ class SQLUpdateCompiler(SQLCompiler):
                 placeholder = field.get_placeholder(val, self, self.connection)
             else:
                 placeholder = "%s"
-            name = field.column
+            col = field.get_col(alias)
+            col_sql, col_params = self.compile(col)
+            update_params.extend(col_params)
             if hasattr(val, "as_sql"):
-                sql, params = self.compile(val)
-                values.append("%s = %s" % (qn(name), placeholder % sql))
-                update_params.extend(params)
+                val_sql, val_params = self.compile(val)
+                values.append("%s = %s" % (col_sql, placeholder % val_sql))
+                update_params.extend(val_params)
             elif val is not None:
-                values.append("%s = %s" % (qn(name), placeholder))
+                values.append("%s = %s" % (col_sql, placeholder))
                 update_params.append(val)
             else:
-                values.append("%s = NULL" % qn(name))
+                values.append("%s = NULL" % col_sql)
+        return values, update_params
+
+    def as_sql(self):
+        """
+        Create the SQL for this query. Return the SQL string and list of
+        parameters.
+        """
+        self.pre_sql_setup()
+        if not self.query.values:
+            return "", ()
+        values_sql, values_params = self.get_update_values()
         table = self.query.base_table
         result = [
-            "UPDATE %s SET" % qn(table),
-            ", ".join(values),
+            "UPDATE %s SET" % self.quote_name_unless_alias(table),
+            ", ".join(values_sql),
         ]
         try:
-            where, params = self.compile(self.query.where)
+            where_sql, where_params = self.compile(self.query.where)
         except FullResultSet:
-            params = []
+            where_params = []
         else:
-            result.append("WHERE %s" % where)
-        return " ".join(result), tuple(update_params + params)
+            result.append("WHERE %s" % where_sql)
+        return " ".join(result), tuple([*values_params, *where_params])
 
     def execute_sql(self, result_type):
         """
@@ -2122,10 +2134,7 @@ class SQLUpdateCompiler(SQLCompiler):
         updates.
         """
         refcounts_before = self.query.alias_refcount.copy()
-        # Ensure base table is in the query
-        self.query.get_initial_alias()
-        count = self.query.count_active_tables()
-        if not self.query.related_updates and count == 1:
+        if not self.query.related_updates and self.single_alias:
             return
         query = self.query.chain(klass=Query)
         query.select_related = False
