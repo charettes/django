@@ -58,3 +58,39 @@ class RecursivePrefetchTests(TestCase):
             right_left, right_right = right.children.all()
             self.assertQuerySetEqual(right_left.children.all(), [])
             self.assertQuerySetEqual(right_right.children.all(), [])
+
+    def test_forward_bidirectional(self):
+        nodes = Node.objects.prefetch_related(
+            RecursivePrefetch("parent", Node, bidirectional=True)
+        )
+        with self.assertNumQueries(2):
+            node = nodes.get(pk=self.left.pk)
+            self.assertEqual(node.parent, self.root)
+            # XXX: Not working as the prefetching logic only allows one
+            # relation direction to be assigned at a time.
+            # self.assertQuerySetEqual(
+            #     node.children.all(), [self.left_left, self.left_right]
+            # )
+            left = node.parent.children.all()[0]
+            self.assertEqual(left, node)
+            # Note that the remaining of tree is actually prefetched.
+            self.assertQuerySetEqual(
+                left.children.all(), [self.left_left, self.left_right]
+            )
+
+    def test_reverse_bidirectional(self):
+        nodes = Node.objects.prefetch_related(
+            RecursivePrefetch("children", Node, bidirectional=True)
+        )
+        with self.assertNumQueries(2):
+            node = nodes.get(pk=self.right.pk)
+            # XXX: Not working as the prefetching logic only allows one
+            # relation direction to be assigned at a time.
+            # self.assertEqual(node.parent, self.root)
+            self.assertQuerySetEqual(
+                node.children.all(), [self.right_left, self.right_right]
+            )
+            right = node.children.all()[0].parent
+            self.assertEqual(right, node)
+            # Note that the remaining of tree is actually prefetched.
+            self.assertEqual(right.parent, self.root)
