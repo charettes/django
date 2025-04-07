@@ -68,3 +68,23 @@ class DBDefaultsFK(models.Model):
     language_code = models.ForeignKey(
         DBDefaultsPK, db_default="fr", on_delete=models.CASCADE
     )
+
+
+class RandomUUID(models.Func):
+    arity = 0
+    function = "uuid"
+    output_field = models.UUIDField()
+
+    # XXX: Requires the UUID extension to be loaded on SQLite.
+
+    def as_mysql(self, compiler, connection):
+        # XXX: For whatever reason we decided to store UUIDs without
+        # dashes on MySQL
+        return "REPLACE(UUID(), %s, %s)", ("-", "")
+
+    def as_postgresql(self, compiler, connection):
+        return "GEN_RANDOM_UUID()", ()
+
+
+class DBDefaultUUIDPK(models.Model):
+    id = models.UUIDField(primary_key=True, db_default=RandomUUID())

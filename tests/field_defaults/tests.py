@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from math import pi
@@ -31,6 +32,7 @@ from .models import (
     DBDefaultsFK,
     DBDefaultsFunction,
     DBDefaultsPK,
+    DBDefaultUUIDPK,
 )
 
 
@@ -109,6 +111,14 @@ class DefaultTests(TestCase):
         obj2 = DBDefaultsPK.objects.create(language_code="de")
         self.assertEqual(obj2.pk, "de")
         self.assertEqual(obj2.language_code, "de")
+
+    def test_pk_db_default_uuid(self):
+        obj = DBDefaultUUIDPK.objects.create()
+        if not connection.features.can_return_columns_from_insert:
+            # refresh_from_db() cannot be used because that needs the pk to
+            # already be known to Django.
+            obj = DBDefaultUUIDPK.objects.get()
+        self.assertIsInstance(obj.pk, uuid.UUID)
 
     def test_foreign_key_db_default(self):
         parent1 = DBDefaultsPK.objects.create(language_code="fr")
