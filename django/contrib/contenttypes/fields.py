@@ -7,8 +7,15 @@ from asgiref.sync import sync_to_async
 from django.contrib.contenttypes.models import ContentType
 from django.core import checks
 from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
-from django.db import DEFAULT_DB_ALIAS, models, router, transaction
-from django.db.models import DO_NOTHING, ForeignObject, ForeignObjectRel
+from django.db import (
+    DEFAULT_DB_ALIAS,
+    NotSupportedError,
+    connections,
+    models,
+    router,
+    transaction,
+)
+from django.db.models import DO_NOTHING, ForeignObject, ForeignObjectRel, Window
 from django.db.models.base import ModelBase, make_foreign_order_accessors
 from django.db.models.fields import Field
 from django.db.models.fields.mixins import FieldCacheMixin
@@ -16,6 +23,8 @@ from django.db.models.fields.related import (
     ReverseManyToOneDescriptor,
     lazy_related_operation,
 )
+from django.db.models.functions import RowNumber
+from django.db.models.lookups import GreaterThan, LessThanOrEqual
 from django.db.models.query_utils import PathInfo
 from django.db.models.sql import AND
 from django.db.models.sql.where import WhereNode
@@ -634,7 +643,7 @@ def create_generic_related_manager(superclass, rel):
             queryset._add_hints(instance=instances[0])
             queryset = queryset.using(queryset._db or self._db)
             # Group instances by content types.
-            content_type_queries = [
+            content_type_predicates = [
                 models.Q.create(
                     [
                         (f"{self.content_type_field_name}__pk", content_type_id),
@@ -646,13 +655,41 @@ def create_generic_related_manager(superclass, rel):
                     lambda obj: self.get_content_type(obj).pk,
                 )
             ]
-            query = models.Q.create(content_type_queries, connector=models.Q.OR)
+            predicate = models.Q.create(content_type_predicates, connector=models.Q.OR)
             # We (possibly) need to convert object IDs to the type of the
             # instances' PK in order to match up instances:
             object_id_converter = instances[0]._meta.pk.to_python
             content_type_id_field_name = "%s_id" % self.content_type_field_name
+            if queryset.query.is_sliced:
+                db = queryset._db or DEFAULT_DB_ALIAS
+                if not connections[db].features.supports_over_clause:
+                    raise NotSupportedError(
+                        "Prefetching from a limited queryset is only supported on backends "
+                        "that support window functions."
+                    )
+                low_mark, high_mark = queryset.query.low_mark, queryset.query.high_mark
+                order_by = [
+                    expr
+                    for expr, _ in queryset.query.get_compiler(using=db).get_order_by()
+                ]
+                window = Window(
+                    RowNumber(),
+                    partition_by=(
+                        self.content_type_field_name,
+                        self.object_id_field_name,
+                    ),
+                    order_by=order_by,
+                )
+                if low_mark:
+                    predicate &= GreaterThan(window, low_mark)
+                if high_mark is not None:
+                    predicate &= LessThanOrEqual(window, high_mark)
+                queryset.query.clear_limits()
+            # All pre-existing JOINs must be re-used when applying the predicate to
+            # avoid unintended spanning of multi-valued relationships.
+            queryset.query.add_q(predicate, reuse_all=True)
             return (
-                queryset.filter(query),
+                queryset,
                 lambda relobj: (
                     object_id_converter(getattr(relobj, self.object_id_field_name)),
                     getattr(relobj, content_type_id_field_name),

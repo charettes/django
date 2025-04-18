@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.core.exceptions import FieldError
-from django.db.models import Q, prefetch_related_objects
+from django.db.models import Prefetch, Q, prefetch_related_objects
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
 from .models import (
@@ -728,6 +728,48 @@ class GenericRelationsTests(TestCase):
             tags = list(qs)
         for tag in tags:
             self.assertSequenceEqual(tag.content_object.tags.all(), [tag])
+
+    @skipUnlessDBFeature("supports_over_clause")
+    def test_prefetch_limit(self):
+        a1 = Animal.objects.create(common_name="Dog")
+        a2 = Animal.objects.create(common_name="Bird")
+        TaggedItem.objects.bulk_create(
+            [
+                TaggedItem(
+                    content_object=Vegetable.objects.create(name="broccoli"),
+                    tag="green",
+                ),
+                TaggedItem(
+                    content_object=a1,
+                    tag="walk",
+                ),
+                TaggedItem(
+                    content_object=a1,
+                    tag="mammal",
+                ),
+                TaggedItem(
+                    content_object=a2,
+                    tag="fly",
+                ),
+                TaggedItem(
+                    content_object=a2,
+                    tag="feather",
+                ),
+            ]
+        )
+        with self.assertNumQueries(2):
+            animals = list(
+                Animal.objects.order_by("common_name").prefetch_related(
+                    Prefetch(
+                        "tags",
+                        TaggedItem.objects.order_by("tag")[:1],
+                        to_attr="first_tags",
+                    )
+                )
+            )
+        self.assertEqual([tag.tag for tag in animals[0].first_tags], ["feather"])
+        self.assertEqual([tag.tag for tag in animals[1].first_tags], ["mammal"])
+        self.assertEqual([tag.tag for tag in animals[2].first_tags], ["hairy"])
 
     def test_prefetch_related_custom_object_id(self):
         tiger = Animal.objects.create(common_name="tiger")
