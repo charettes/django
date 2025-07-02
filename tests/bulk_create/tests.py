@@ -18,7 +18,6 @@ from django.test import (
     skipIfDBFeature,
     skipUnlessDBFeature,
 )
-from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from .models import (
@@ -217,11 +216,15 @@ class BulkCreateTests(TestCase):
 
     @skipUnlessDBFeature("has_bulk_insert")
     def test_large_batch_efficiency(self):
-        with CaptureQueriesContext(connection) as ctx:
-            TwoFields.objects.bulk_create(
-                [TwoFields(f1=i, f2=i + 1) for i in range(0, 1001)]
-            )
-            self.assertLess(len(ctx), 10)
+        count = 1000
+        opts = TwoFields._meta
+        fields = [opts.get_field(field) for field in ["id", "f2", "f2"]]
+        objs = [TwoFields(f1=i, f2=i + 1) for i in range(0, count + 1)]
+        expected_num_queries = ceil(
+            count / connection.ops.bulk_batch_size(fields, objs)
+        )
+        with self.assertNumQueries(expected_num_queries):
+            TwoFields.objects.bulk_create(objs)
 
     def test_large_batch_mixed(self):
         """
@@ -247,14 +250,18 @@ class BulkCreateTests(TestCase):
         Test inserting a large batch with objects having primary key set
         mixed together with objects without PK set.
         """
-        with CaptureQueriesContext(connection) as ctx:
-            TwoFields.objects.bulk_create(
-                [
-                    TwoFields(id=i if i % 2 == 0 else None, f1=i, f2=i + 1)
-                    for i in range(100000, 101000)
-                ]
-            )
-            self.assertLess(len(ctx), 10)
+        count = 1000
+        opts = TwoFields._meta
+        fields = [opts.get_field(field) for field in ["id", "f2", "f2"]]
+        objs = [
+            TwoFields(id=i if i % 2 == 0 else None, f1=i, f2=i + 1)
+            for i in range(100000, 101000)
+        ]
+        expected_num_queries = ceil(
+            count / connection.ops.bulk_batch_size(fields, objs)
+        )
+        with self.assertNumQueries(expected_num_queries):
+            TwoFields.objects.bulk_create(objs)
 
     def test_explicit_batch_size(self):
         objs = [TwoFields(f1=i, f2=i) for i in range(0, 4)]
@@ -906,7 +913,7 @@ class BulkCreateTransactionTests(TransactionTestCase):
 
     def test_objs_with_and_without_pk(self):
         unused_id = self.get_unused_country_id()
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(1):
             Country.objects.bulk_create(
                 [
                     Country(id=unused_id, name="France", iso_two_letter="FR"),

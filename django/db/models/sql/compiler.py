@@ -1812,7 +1812,8 @@ class SQLInsertCompiler(SQLCompiler):
                     field_prepare(field_pre_save(obj)) for obj in self.query.objs
                 ]
 
-                if not field.has_db_default():
+                has_db_default = field.has_db_default()
+                if not (has_db_default or isinstance(field, AutoField)):
                     value_cols.append(field_values)
                     continue
 
@@ -1820,13 +1821,16 @@ class SQLInsertCompiler(SQLCompiler):
                 # values in the query as they are redundant and could prevent
                 # optimizations. This cannot be done if we're dealing with the
                 # last field as INSERT statements require at least one.
-                if len(fields) > 1 and all(
-                    isinstance(value, DatabaseDefault) for value in field_values
-                ):
+                is_default = (
+                    (lambda value: isinstance(value, DatabaseDefault))
+                    if has_db_default
+                    else lambda value: value is None
+                )
+                if len(fields) > 1 and all(is_default(value) for value in field_values):
                     fields.remove(field)
                     continue
 
-                if supports_default_keyword_in_bulk_insert:
+                if has_db_default and supports_default_keyword_in_bulk_insert:
                     value_cols.append(field_values)
                     continue
 
@@ -1834,13 +1838,13 @@ class SQLInsertCompiler(SQLCompiler):
                 # reasons listed above and the backend doesn't support the
                 # DEFAULT keyword each values must be expanded into their
                 # underlying expressions.
-                prepared_db_default = field_prepare(field.db_default)
+                prepared_default_value = (
+                    field_prepare(field.db_default)
+                    if has_db_default
+                    else RawSQL(self.connection.ops.pk_default_value(), ())
+                )
                 field_values = [
-                    (
-                        prepared_db_default
-                        if isinstance(value, DatabaseDefault)
-                        else value
-                    )
+                    (prepared_default_value if is_default(value) else value)
                     for value in field_values
                 ]
                 value_cols.append(field_values)
