@@ -408,7 +408,11 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def get_specialized_integrity_error(self, exception):
         if isinstance(exception, errors.UniqueViolation):
-            return UniqueConstraintViolation(*exception.args)
+            match = re.search(r'violates unique constraint "([^"]+)"', str(exception))
+            constraint_name = match[1] if match else None
+            return UniqueConstraintViolation(*exception.args, constraint_name)
         if isinstance(exception, errors.CheckViolation):
-            return CheckConstraintViolation(*exception.args)
+            match = re.search(r'violates check constraint "([^"]+)"', str(exception))
+            constraint_name = match[1] if match else None
+            return CheckConstraintViolation(*exception.args, constraint_name)
         return None

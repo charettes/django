@@ -1,4 +1,5 @@
 import datetime
+import re
 import uuid
 from functools import lru_cache
 from itertools import chain
@@ -732,8 +733,19 @@ END;
         return False
 
     def get_specialized_integrity_error(self, exception):
+        message = exception.args[0].message
         if exception.args[0].code == 1:
-            return UniqueConstraintViolation(*exception.args)
+            match = re.search(
+                r"^ORA-00001: unique constraint \([^.]+\.(.+)\) violated",
+                message,
+            )
+            constraint_name = match[1].lower() if match else None
+            return UniqueConstraintViolation(*exception.args, constraint_name)
         if exception.args[0].code == 2290:
-            return CheckConstraintViolation(*exception.args)
+            match = re.search(
+                r"^ORA-02290: check constraint \([^.]+\.(.+)\) violated",
+                message,
+            )
+            constraint_name = match[1].lower() if match else None
+            return CheckConstraintViolation(*exception.args, constraint_name)
         return None

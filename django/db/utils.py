@@ -51,7 +51,9 @@ class NotSupportedError(DatabaseError):
 
 
 class ConstraintViolation(IntegrityError):
-    pass
+    @property
+    def constraint_name(self):
+        return self.args[-1]
 
 
 class UniqueConstraintViolation(ConstraintViolation):

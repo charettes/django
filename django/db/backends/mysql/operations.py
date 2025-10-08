@@ -441,8 +441,12 @@ class DatabaseOperations(BaseDatabaseOperations):
     def get_specialized_integrity_error(self, exception):
         code = exception.args[0]
         if code == DUP_ENTRY:
-            return UniqueConstraintViolation(*exception.args)
+            match = re.search(r"for key '(.+)'", str(exception))
+            constraint_name = match[1] if match else None
+            return UniqueConstraintViolation(*exception.args, constraint_name)
         # MySQLdb.constants.ER doesn't define a constant for 3819.
         if code == 3819:
-            return CheckConstraintViolation(*exception.args)
+            match = re.search(r"^Check constraint '(.+?)'", str(exception))
+            constraint_name = match[1] if match else None
+            return CheckConstraintViolation(*exception.args, constraint_name)
         return None

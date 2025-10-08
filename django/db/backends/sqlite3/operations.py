@@ -427,7 +427,11 @@ class DatabaseOperations(BaseDatabaseOperations):
             r"^(UNIQUE|CHECK) constraint failed: (.+)$", msg
         ):
             if constraint_violation[1] == "UNIQUE":
-                return UniqueConstraintViolation(*exception.args)
+                # XXX: Implement need schema introspection to identify the
+                # violated constraint name from its columns.
+                return UniqueConstraintViolation(*exception.args, None)
             if constraint_violation[1] == "CHECK":
-                return CheckConstraintViolation(*exception.args)
+                return CheckConstraintViolation(
+                    *exception.args, constraint_violation[2]
+                )
         return None

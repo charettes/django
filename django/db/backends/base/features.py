@@ -35,6 +35,10 @@ class BaseDatabaseFeatures:
     # Does the backend support initially deferrable unique constraints?
     supports_deferrable_unique_constraints = False
 
+    # Does the backend supports introspection unique constraint violation
+    # messages?
+    supports_unique_constraint_violation_introspection = True
+
     can_use_chunked_reads = True
     can_return_columns_from_insert = False
     can_return_rows_from_bulk_insert = False

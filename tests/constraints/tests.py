@@ -11,6 +11,7 @@ from django.db import (
     connection,
     models,
 )
+from django.db.models import F
 from django.db.models.constraints import BaseConstraint, UniqueConstraint
 from django.db.models.functions import Abs, Lower, Sqrt, Upper
 from django.db.transaction import atomic
@@ -228,13 +229,13 @@ class CheckConstraintTests(TestCase):
     @skipUnlessDBFeature("supports_table_check_constraints")
     def test_database_constraint(self):
         Product.objects.create(price=10, discounted_price=5)
-        with self.assertRaises(CheckConstraintViolation):
+        with self.assertRaisesMessage(CheckConstraintViolation, "price_gt_discounted_price"):
             Product.objects.create(price=10, discounted_price=20)
 
     @skipUnlessDBFeature("supports_table_check_constraints")
     def test_database_constraint_unicode(self):
         Product.objects.create(price=10, discounted_price=5, unit="μg/mL")
-        with self.assertRaises(CheckConstraintViolation):
+        with self.assertRaisesMessage(CheckConstraintViolation, "unicode_unit_list"):
             Product.objects.create(price=10, discounted_price=7, unit="l")
 
     @skipUnlessDBFeature(
@@ -855,7 +856,11 @@ class UniqueConstraintTests(TestCase):
         self.assertEqual(kwargs, {"name": name})
 
     def test_database_constraint(self):
-        with self.assertRaises(UniqueConstraintViolation):
+        if connection.features.supports_unique_constraint_violation_introspection:
+            ctx = self.assertRaisesMessage(UniqueConstraintViolation, "name_color_uniq")
+        else:
+            cxt = self.assertRaises(UniqueConstraintViolation)
+        with cxt:
             UniqueConstraintProduct.objects.create(
                 name=self.p1.name, color=self.p1.color
             )
@@ -864,7 +869,11 @@ class UniqueConstraintTests(TestCase):
     def test_database_constraint_with_condition(self):
         UniqueConstraintConditionProduct.objects.create(name="p1")
         UniqueConstraintConditionProduct.objects.create(name="p2")
-        with self.assertRaises(IntegrityError):
+        if connection.features.supports_unique_constraint_violation_introspection:
+            ctx = self.assertRaisesMessage(UniqueConstraintViolation, "name_without_color_uniq")
+        else:
+            ctx = self.assertRaises(UniqueConstraintViolation)
+        with ctx:
             UniqueConstraintConditionProduct.objects.create(name="p1")
 
     def test_model_validation(self):
