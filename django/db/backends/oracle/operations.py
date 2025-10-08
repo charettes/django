@@ -20,6 +20,7 @@ from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.functional import cached_property
 from django.utils.regex_helper import _lazy_re_compile
+from django.db.utils import CheckConstraintViolation, UniqueConstraintViolation
 
 from .base import Database
 from .utils import BoundVar, BulkInsertMapper, Oracle_datetime
@@ -729,3 +730,10 @@ END;
         if isinstance(expression, RawSQL) and expression.conditional:
             return True
         return False
+
+    def get_specialized_integrity_error(self, exception):
+        if exception.args[0].code == 1:
+            return UniqueConstraintViolation(*exception.args)
+        if exception.args[0].code == 2290:
+            return CheckConstraintViolation(*exception.args)
+        return None

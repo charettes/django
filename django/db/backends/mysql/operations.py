@@ -1,10 +1,14 @@
+import re
 import uuid
+
+from MySQLdb.constants.ER import DUP_ENTRY
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.backends.utils import split_tzname_delta
 from django.db.models import Exists, ExpressionWrapper, Lookup
 from django.db.models.constants import OnConflict
+from django.db.utils import CheckConstraintViolation, UniqueConstraintViolation
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.regex_helper import _lazy_re_compile
@@ -433,3 +437,12 @@ class DatabaseOperations(BaseDatabaseOperations):
             update_fields,
             unique_fields,
         )
+
+    def get_specialized_integrity_error(self, exception):
+        code = exception.args[0]
+        if code == DUP_ENTRY:
+            return UniqueConstraintViolation(*exception.args)
+        # MySQLdb.constants.ER doesn't define a constant for 3819.
+        if code == 3819:
+            return CheckConstraintViolation(*exception.args)
+        return None

@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import re
 import uuid
 from functools import lru_cache
 from itertools import chain
@@ -10,6 +11,7 @@ from django.db import DatabaseError, NotSupportedError, models
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.constants import OnConflict
 from django.db.models.expressions import Col
+from django.db.utils import CheckConstraintViolation, UniqueConstraintViolation
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 from django.utils.functional import cached_property
@@ -418,3 +420,14 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def format_json_path_numeric_index(self, num):
         return "[#%s]" % num if num < 0 else super().format_json_path_numeric_index(num)
+
+    def get_specialized_integrity_error(self, exception):
+        msg = exception.args[0] if exception.args else ""
+        if constraint_violation := re.match(
+            r"^(UNIQUE|CHECK) constraint failed: (.+)$", msg
+        ):
+            if constraint_violation[1] == "UNIQUE":
+                return UniqueConstraintViolation(*exception.args)
+            if constraint_violation[1] == "CHECK":
+                return CheckConstraintViolation(*exception.args)
+        return None

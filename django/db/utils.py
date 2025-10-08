@@ -50,6 +50,18 @@ class NotSupportedError(DatabaseError):
     pass
 
 
+class ConstraintViolation(IntegrityError):
+    pass
+
+
+class UniqueConstraintViolation(ConstraintViolation):
+    pass
+
+
+class CheckConstraintViolation(ConstraintViolation):
+    pass
+
+
 class DatabaseErrorWrapper:
     """
     Context manager and decorator that reraises backend-specific database
@@ -87,9 +99,15 @@ class DatabaseErrorWrapper:
             db_exc_type = getattr(self.wrapper.Database, dj_exc_type.__name__)
             if issubclass(exc_type, db_exc_type):
                 dj_exc_value = dj_exc_type(*exc_value.args)
+                if isinstance(dj_exc_value, IntegrityError):
+                    specialized_integrity_error = (
+                        self.wrapper.ops.get_specialized_integrity_error(exc_value)
+                    )
+                    if specialized_integrity_error:
+                        dj_exc_value = specialized_integrity_error
                 # Only set the 'errors_occurred' flag for errors that may make
                 # the connection unusable.
-                if dj_exc_type not in (DataError, IntegrityError):
+                if not isinstance(dj_exc_type, (DataError, IntegrityError)):
                     self.wrapper.errors_occurred = True
                 raise dj_exc_value.with_traceback(traceback) from exc_value
 

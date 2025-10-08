@@ -2,8 +2,10 @@ from django.core import signals
 from django.db.utils import (
     DEFAULT_DB_ALIAS,
     DJANGO_VERSION_PICKLE_KEY,
+    CheckConstraintViolation,
     ConnectionHandler,
     ConnectionRouter,
+    ConstraintViolation,
     DatabaseError,
     DataError,
     Error,
@@ -13,6 +15,7 @@ from django.db.utils import (
     NotSupportedError,
     OperationalError,
     ProgrammingError,
+    UniqueConstraintViolation,
 )
 from django.utils.connection import ConnectionProxy
 
@@ -33,6 +36,9 @@ __all__ = [
     "OperationalError",
     "DEFAULT_DB_ALIAS",
     "DJANGO_VERSION_PICKLE_KEY",
+    "ConstraintViolation",
+    "CheckConstraintViolation",
+    "UniqueConstraintViolation",
 ]
 
 connections = ConnectionHandler()

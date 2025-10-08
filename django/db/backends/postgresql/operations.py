@@ -1,4 +1,5 @@
 import json
+import re
 from functools import lru_cache, partial
 
 from django.conf import settings
@@ -14,6 +15,7 @@ from django.db.backends.postgresql.psycopg_any import (
 from django.db.backends.utils import split_tzname_delta
 from django.db.models.constants import OnConflict
 from django.db.models.functions import Cast
+from django.db.utils import CheckConstraintViolation, UniqueConstraintViolation
 from django.utils.regex_helper import _lazy_re_compile
 
 
@@ -403,3 +405,10 @@ class DatabaseOperations(BaseDatabaseOperations):
             rhs_expr = Cast(rhs_expr, lhs_field)
 
         return lhs_expr, rhs_expr
+
+    def get_specialized_integrity_error(self, exception):
+        if isinstance(exception, errors.UniqueViolation):
+            return UniqueConstraintViolation(*exception.args)
+        if isinstance(exception, errors.CheckViolation):
+            return CheckConstraintViolation(*exception.args)
+        return None

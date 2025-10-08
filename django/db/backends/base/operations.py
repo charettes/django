@@ -843,3 +843,10 @@ class BaseDatabaseOperations:
                     )
                 path.append(self.format_json_path_numeric_index(num))
         return "".join(path)
+
+    def get_specialized_integrity_error(self, exception):
+        """
+        Given the arguments of an IntegrityError exception, return a more
+        specialized subclass if possible
+        """
+        return None

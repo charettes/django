@@ -4,6 +4,13 @@ from unittest import mock
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, models
 from django.db.models import Case, F, When
+from django.db import (
+    IntegrityError,
+    CheckConstraintViolation,
+    UniqueConstraintViolation,
+    connection,
+    models,
+)
 from django.db.models.constraints import BaseConstraint, UniqueConstraint
 from django.db.models.functions import Abs, Lower, Sqrt, Upper
 from django.db.transaction import atomic
@@ -221,13 +228,13 @@ class CheckConstraintTests(TestCase):
     @skipUnlessDBFeature("supports_table_check_constraints")
     def test_database_constraint(self):
         Product.objects.create(price=10, discounted_price=5)
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(CheckConstraintViolation):
             Product.objects.create(price=10, discounted_price=20)
 
     @skipUnlessDBFeature("supports_table_check_constraints")
     def test_database_constraint_unicode(self):
         Product.objects.create(price=10, discounted_price=5, unit="μg/mL")
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(CheckConstraintViolation):
             Product.objects.create(price=10, discounted_price=7, unit="l")
 
     @skipUnlessDBFeature(
@@ -848,7 +855,7 @@ class UniqueConstraintTests(TestCase):
         self.assertEqual(kwargs, {"name": name})
 
     def test_database_constraint(self):
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(UniqueConstraintViolation):
             UniqueConstraintProduct.objects.create(
                 name=self.p1.name, color=self.p1.color
             )
