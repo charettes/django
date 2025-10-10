@@ -225,13 +225,13 @@ Configurable attributes
 
     By default, this attribute isn't set.
 
-.. attribute:: AppConfig.default_auto_field
+.. attribute:: AppConfig.default_pk_field
 
     The implicit primary key type to add to models within this app. You can
     use this to keep :class:`~django.db.models.AutoField` as the primary key
     type for third party applications.
 
-    By default, this is the value of :setting:`DEFAULT_AUTO_FIELD`.
+    By default, this is the value of :setting:`DEFAULT_PK_FIELD`.
 
 Read-only attributes
 --------------------

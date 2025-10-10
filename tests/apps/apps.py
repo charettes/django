@@ -35,4 +35,4 @@ class RelabeledAppsConfig(AppConfig):
 
 class ModelPKAppsConfig(AppConfig):
     name = "apps"
-    default_auto_field = "django.db.models.BigAutoField"
+    default_pk_field = "django.db.models.BigAutoField"

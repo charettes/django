@@ -258,20 +258,20 @@ class Options:
             new_objs.append(obj)
         return new_objs
 
-    def _get_default_pk_class(self):
+    def _get_default_pk(self):
         pk_class_path = getattr(
             self.app_config,
-            "default_auto_field",
-            settings.DEFAULT_AUTO_FIELD,
+            "default_pk_field",
+            settings.DEFAULT_PK_FIELD,
         )
-        if self.app_config and self.app_config._is_default_auto_field_overridden:
+        if self.app_config and self.app_config._is_default_pk_field_overridden:
             app_config_class = type(self.app_config)
             source = (
                 f"{app_config_class.__module__}."
-                f"{app_config_class.__qualname__}.default_auto_field"
+                f"{app_config_class.__qualname__}.default_pk_field"
             )
         else:
-            source = "DEFAULT_AUTO_FIELD"
+            source = "DEFAULT_PK_FIELD"
         if not pk_class_path:
             raise ImproperlyConfigured(f"{source} must not be empty.")
         try:
@@ -282,12 +282,13 @@ class Options:
                 f"not be imported."
             )
             raise ImproperlyConfigured(msg) from e
-        if not issubclass(pk_class, AutoField):
+        pk = pk_class(verbose_name="ID", primary_key=True, auto_created=True)
+        if not (pk.has_default() or pk.db_returning):
             raise ValueError(
                 f"Primary key '{pk_class_path}' referred by {source} must "
-                f"subclass AutoField."
+                f"either define a `default` or a `db_default`."
             )
-        return pk_class
+        return pk
 
     def _prepare(self, model):
         if self.order_with_respect_to:
@@ -329,9 +330,8 @@ class Options:
                 field.primary_key = True
                 self.setup_pk(field)
             else:
-                pk_class = self._get_default_pk_class()
-                auto = pk_class(verbose_name="ID", primary_key=True, auto_created=True)
-                model.add_to_class("id", auto)
+                pk = self._get_default_pk()
+                model.add_to_class("id", pk)
 
     def add_manager(self, manager):
         self.local_managers.append(manager)

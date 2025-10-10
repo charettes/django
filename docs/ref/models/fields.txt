@@ -547,9 +547,9 @@ not defined a composite primary key, Django will automatically add a field to
 hold the primary key. So, you don't need to set ``primary_key=True`` on any of
 your fields unless you want to override the default primary-key behavior. The
 type of auto-created primary key fields can be specified per app in
-:attr:`AppConfig.default_auto_field <django.apps.AppConfig.default_auto_field>`
-or globally in the :setting:`DEFAULT_AUTO_FIELD` setting. For more, see
-:ref:`automatic-primary-key-fields`.
+:attr:`AppConfig.default_pk_field <django.apps.AppConfig.default_pk_field>`
+or globally in the :setting:`DEFAULT_PK_FIELD` setting. For more, see
+:ref:`default-primary-key-fields`.
 
 ``primary_key=True`` implies :attr:`null=False <Field.null>` and
 :attr:`unique=True <Field.unique>`. Only one field per model can set
@@ -653,7 +653,7 @@ Field types
 An :class:`IntegerField` that automatically increments according to available
 IDs. You usually won't need to use this directly; a primary key field will
 automatically be added to your model if you don't specify otherwise. See
-:ref:`automatic-primary-key-fields`.
+:ref:`default-primary-key-fields`.
 
 ``BigAutoField``
 ----------------

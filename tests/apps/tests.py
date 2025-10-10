@@ -506,27 +506,27 @@ class AppConfigTests(SimpleTestCase):
 
     @override_settings(
         INSTALLED_APPS=["apps.apps.ModelPKAppsConfig"],
-        DEFAULT_AUTO_FIELD="django.db.models.SmallAutoField",
+        DEFAULT_PK_FIELD="django.db.models.SmallAutoField",
     )
-    def test_app_default_auto_field(self):
+    def test_app_default_pk_field(self):
         apps_config = apps.get_app_config("apps")
         self.assertEqual(
-            apps_config.default_auto_field,
+            apps_config.default_pk_field,
             "django.db.models.BigAutoField",
         )
-        self.assertIs(apps_config._is_default_auto_field_overridden, True)
+        self.assertIs(apps_config._is_default_pk_field_overridden, True)
 
     @override_settings(
         INSTALLED_APPS=["apps.apps.PlainAppsConfig"],
-        DEFAULT_AUTO_FIELD="django.db.models.SmallAutoField",
+        DEFAULT_PK_FIELD="django.db.models.SmallAutoField",
     )
-    def test_default_auto_field_setting(self):
+    def test_default_pk_field_setting(self):
         apps_config = apps.get_app_config("apps")
         self.assertEqual(
-            apps_config.default_auto_field,
+            apps_config.default_pk_field,
             "django.db.models.SmallAutoField",
         )
-        self.assertIs(apps_config._is_default_auto_field_overridden, False)
+        self.assertIs(apps_config._is_default_pk_field_overridden, False)
 
 
 class NamespacePackageAppTests(SimpleTestCase):

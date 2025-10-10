@@ -17,10 +17,15 @@ import django
 from django.conf import global_settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.functional import LazyObject, empty
+from django.utils.deprecation import RemovedInDjango70Warning
 
 ENVIRONMENT_VARIABLE = "DJANGO_SETTINGS_MODULE"
 DEFAULT_STORAGE_ALIAS = "default"
 STATICFILES_STORAGE_ALIAS = "staticfiles"
+
+DEFAULT_AUTO_FIELD_DEPRECATED_MSG = (
+    "The DEFAULT_AUTO_FIELD setting is deprecated. " "Use DEFAULT_PK_FIELD instead."
+)
 
 
 class SettingsReference(str):
@@ -194,6 +199,17 @@ class Settings:
             os.environ["TZ"] = self.TIME_ZONE
             time.tzset()
 
+        if self.is_overridden("DEFAULT_AUTO_FIELD"):
+            if self.is_overridden("DEFAULT_PK_FIELD"):
+                raise ImproperlyConfigured(
+                    "DEFAULT_AUTO_FIELD/DEFAULT_PK_FIELD are mutually exclusive."
+                )
+            self.DEFAULT_PK_FIELD = self.DEFAULT_AUTO_FIELD
+            warnings.warn(
+                DEFAULT_AUTO_FIELD_DEPRECATED_MSG,
+                category=RemovedInDjango70Warning,
+            )
+
     def is_overridden(self, setting):
         return setting in self._explicit_settings
 
@@ -226,6 +242,12 @@ class UserSettingsHolder:
 
     def __setattr__(self, name, value):
         self._deleted.discard(name)
+        if name == "DEFAULT_AUTO_FIELD":
+            warnings.warn(
+                DEFAULT_AUTO_FIELD_DEPRECATED_MSG,
+                category=RemovedInDjango70Warning,
+                skip_file_prefixes=django_file_prefixes(),
+            )
         super().__setattr__(name, value)
 
     def __delattr__(self, name):

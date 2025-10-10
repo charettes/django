@@ -1274,10 +1274,10 @@ instead.
 See also :setting:`NUMBER_GROUPING`, :setting:`THOUSAND_SEPARATOR` and
 :setting:`USE_THOUSAND_SEPARATOR`.
 
-.. setting:: DEFAULT_AUTO_FIELD
+.. setting:: DEFAULT_PK_FIELD
 
-``DEFAULT_AUTO_FIELD``
-----------------------
+``DEFAULT_PK_FIELD``
+--------------------
 
 Default: ``'``:class:`django.db.models.BigAutoField`\ ``'``
 
@@ -1291,13 +1291,13 @@ Default primary key field type to use for models that don't have a field with
 
 .. admonition:: Migrating auto-created through tables
 
-    The value of ``DEFAULT_AUTO_FIELD`` will be respected when creating new
+    The value of ``DEFAULT_PK_FIELD`` will be respected when creating new
     auto-created through tables for many-to-many relationships.
 
     Unfortunately, the primary keys of existing auto-created through tables
     cannot currently be updated by the migrations framework.
 
-    This means that if you switch the value of ``DEFAULT_AUTO_FIELD`` and then
+    This means that if you switch the value of ``DEFAULT_PK_FIELD`` and then
     generate migrations, the primary keys of the related models will be
     updated, as will the foreign keys from the through table, but the primary
     key of the auto-created through table will not be migrated.

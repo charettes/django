@@ -52,7 +52,7 @@ Some technical notes:
   details.
 
 * An ``id`` field is added automatically, but this behavior can be
-  overridden. See :ref:`automatic-primary-key-fields`.
+  overridden. See :ref:`default-primary-key-fields`.
 
 * The ``CREATE TABLE`` SQL in this example is formatted using PostgreSQL
   syntax, but it's worth noting Django uses SQL tailored to the database
@@ -245,7 +245,7 @@ often-used ones:
     the primary key, so you don't need to set
     :attr:`primary_key=True <Field.primary_key>` on any of your fields
     unless you want to override the default primary-key behavior. For more,
-    see :ref:`automatic-primary-key-fields`.
+    see :ref:`default-primary-key-fields`.
 
     The primary key field is read-only. If you change the value of the primary
     key on an existing object and then save it, a new object will be created
@@ -272,21 +272,21 @@ Again, these are just short descriptions of the most common field options. Full
 details can be found in the :ref:`common model field option reference
 <common-model-field-options>`.
 
-.. _automatic-primary-key-fields:
+.. _default-primary-key-fields:
 
-Automatic primary key fields
-----------------------------
+Default primary key fields
+--------------------------
 
-By default, Django gives each model an auto-incrementing primary key with the
-type specified per app in :attr:`AppConfig.default_auto_field
-<django.apps.AppConfig.default_auto_field>` or globally in the
-:setting:`DEFAULT_AUTO_FIELD` setting. For example::
+By default, Django defines an auto-incrementing primary key field named ``id``
+with the type specified per app in :attr:`AppConfig.default_pk_field
+<django.apps.AppConfig.default_pk_field>` or globally in the
+:setting:`DEFAULT_PK_FIELD` setting. For example::
 
     id = models.BigAutoField(primary_key=True)
 
 If you'd like to specify a custom primary key, specify :attr:`primary_key=True
 <Field.primary_key>` on one of your fields. If Django sees you've explicitly
-set :attr:`Field.primary_key`, it won't add the automatic ``id`` column.
+set :attr:`Field.primary_key`, it won't define a default ``id`` field for you.
 
 Each model requires exactly one field to have :attr:`primary_key=True
 <Field.primary_key>` (either explicitly declared or automatically added).

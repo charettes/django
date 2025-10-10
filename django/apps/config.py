@@ -1,13 +1,24 @@
 import inspect
 import os
+import warnings
 from importlib import import_module
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.functional import cached_property
 from django.utils.module_loading import import_string, module_has_submodule
+from django.utils.deprecation import RemovedInDjango70Warning, django_file_prefixes
 
 APPS_MODULE_NAME = "apps"
 MODELS_MODULE_NAME = "models"
+
+
+def _warn_default_auto_field_deprecated(self):
+    warnings.warn(
+        "Accessing AppConfig.default_auto_field is deprecated. Use default_pk_field instead.",
+        category=RemovedInDjango70Warning,
+        skip_file_prefixes=django_file_prefixes(),
+    )
+    return self.auto_pk_field
 
 
 class AppConfig:
@@ -55,18 +66,28 @@ class AppConfig:
         # None to prevent accidental access before import_models() runs.
         self.models = None
 
+    def __init_subclass__(cls):
+        if (default_auto_field := cls.__dict__.get("default_auto_field")) is not None:
+            warnings.warn(
+                "Defining AppConfig.default_auto_field is deprecated. Use default_pk_field instead.",
+                category=RemovedInDjango70Warning,
+                skip_file_prefixes=django_file_prefixes(),
+            )
+            cls.default_pk_field = default_auto_field
+            cls.default_auto_field = property(_warn_default_auto_field_deprecated)
+
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, self.label)
 
     @cached_property
-    def default_auto_field(self):
+    def default_pk_field(self):
         from django.conf import settings
 
-        return settings.DEFAULT_AUTO_FIELD
+        return settings.DEFAULT_PK_FIELD
 
     @property
-    def _is_default_auto_field_overridden(self):
-        return self.__class__.default_auto_field is not AppConfig.default_auto_field
+    def _is_default_pk_field_overridden(self):
+        return self.__class__.default_pk_field is not AppConfig.default_pk_field
 
     def _path_from_module(self, module):
         """Attempt to determine app's filesystem path from its module."""

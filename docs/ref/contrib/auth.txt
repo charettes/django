@@ -347,7 +347,7 @@ Manager methods
     implements the :class:`django.contrib.auth.models.User` interface, with
     these differences:
 
-    * :ref:`id <automatic-primary-key-fields>` is always ``None``.
+    * :ref:`id <default-primary-key-fields>` is always ``None``.
     * :attr:`~django.contrib.auth.models.User.username` is always the empty
       string.
     * :meth:`~django.contrib.auth.models.User.get_username` always returns

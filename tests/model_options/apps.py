@@ -7,19 +7,19 @@ class ModelDefaultPKConfig(AppConfig):
 
 class ModelPKConfig(AppConfig):
     name = "model_options"
-    default_auto_field = "django.db.models.SmallAutoField"
+    default_pk_field = "django.db.models.SmallAutoField"
 
 
 class ModelPKNonAutoConfig(AppConfig):
     name = "model_options"
-    default_auto_field = "django.db.models.TextField"
+    default_pk_field = "django.db.models.TextField"
 
 
 class ModelPKNoneConfig(AppConfig):
     name = "model_options"
-    default_auto_field = None
+    default_pk_field = None
 
 
 class ModelPKNonexistentConfig(AppConfig):
     name = "model_options"
-    default_auto_field = "django.db.models.NonexistentAutoField"
+    default_pk_field = "django.db.models.NonexistentAutoField"
